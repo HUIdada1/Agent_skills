@@ -1,13 +1,13 @@
 // IPC 封装：Electron 环境下通过 preload 桥接调用主进程；浏览器环境下回退到本地空数据（便于独立开发/预览 UI）。
 import type {
   AppConfig, SkillRow, SkillDetail, Overview, SyncPlan, SyncResult, ConflictItem, ConflictDiff,
-  ReportRow, ToolRow, TrashRow,
+  ReportRow, ToolRow, TrashRow, UpdateStatus, UpdateEvent,
 } from "../types";
 
 // 类型随 API 一并供应（视图统一从本模块导入）
 export type {
   AppConfig, SkillRow, SkillDetail, Overview, SyncPlan, SyncResult, ConflictItem, ConflictDiff,
-  ReportRow, ToolRow, TrashRow,
+  ReportRow, ToolRow, TrashRow, UpdateStatus, UpdateEvent,
 } from "../types";
 
 type InvokeFn = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
@@ -82,3 +82,13 @@ export const browseDir = () => call<{ ok: boolean; canceled?: boolean; path: str
 // ===== 主进程事件 =====
 export const onUpdateEvent = (cb: (payload: unknown) => void): (() => void) | undefined =>
   window.agentSkills?.onUpdateEvent?.((payload) => cb(payload));
+
+// ===== 软件更新（安装版应用内更新；便携版仅提示手动更新） =====
+export const getUpdateStatus = () => call<UpdateStatus>("get_update_status");
+export const checkUpdate = () => call<UpdateStatus>("check_update");
+export const downloadUpdate = () => call<UpdateStatus>("download_update");
+export const installUpdate = () => call<UpdateStatus>("install_update");
+/** GitHub Releases 页（便携版手动下载 / 更新失败兜底） */
+export const openReleasePage = () => call<void>("open_release_page");
+/** GitHub 仓库主页 */
+export const openRepoPage = () => call<void>("open_repo_page");

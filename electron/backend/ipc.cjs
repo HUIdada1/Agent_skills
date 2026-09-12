@@ -8,6 +8,7 @@ const syncer = require("./syncer.cjs");
 const hub = require("./hub.cjs");
 const report = require("./report.cjs");
 const scanner = require("./scanner.cjs");
+const updater = require("./updater.cjs");
 
 /** 全局配置内存缓存：命令处理共用，save_config 时刷新 */
 let cfg = null;
@@ -38,7 +39,15 @@ function handle(fn) {
 function register({ ipcMain }) {
   // ===== 应用信息 =====
   ipcMain.handle("get_app_version", () => app.getVersion());
-  ipcMain.handle("get_is_portable", () => !!process.env.PORTABLE_EXECUTABLE_DIR);
+  ipcMain.handle("get_is_portable", () => updater.isPortable());
+
+  // ===== 软件更新 =====
+  ipcMain.handle("get_update_status", () => updater.getStatus());
+  ipcMain.handle("check_update", () => updater.check(true));
+  ipcMain.handle("download_update", () => updater.download());
+  ipcMain.handle("install_update", () => updater.triggerInstall());
+  ipcMain.handle("open_release_page", () => updater.openReleases());
+  ipcMain.handle("open_repo_page", () => updater.openRepo());
 
   // ===== 配置 =====
   ipcMain.handle("load_config", handle(() => C()));

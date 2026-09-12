@@ -123,3 +123,17 @@ export type SkillDetail = {
   health: HealthIssue[];
   skillMd: string;
 };
+
+/** 更新状态快照（主进程 updater.cjs 维护，经 invoke 拉取 + app:event 事件推送） */
+export type UpdateStatus = {
+  status: "idle" | "checking" | "up-to-date" | "available" | "downloading" | "downloaded" | "error";
+  isPortable: boolean;
+  currentVersion: string;
+  latestVersion: string;
+  percent: number;
+  notes: string;
+  message: string;
+};
+
+/** 主进程推送的更新事件：event="state" 时其余字段为完整状态；event="focus-update" 为通知点击跳转信号 */
+export type UpdateEvent = UpdateStatus & { event: "state" | "focus-update" };

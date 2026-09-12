@@ -7,6 +7,13 @@ const ALLOWED_COMMANDS = new Set([
   // 应用信息
   "get_app_version",
   "get_is_portable",
+  // 软件更新
+  "get_update_status",
+  "check_update",
+  "download_update",
+  "install_update",
+  "open_release_page",
+  "open_repo_page",
   // 配置
   "load_config",
   "save_config",
