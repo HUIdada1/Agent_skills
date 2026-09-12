@@ -1,11 +1,17 @@
-__pycache__/
-*.pyc
-build/
+# 依赖与产物
+node_modules/
 dist/
-.agent_skills/
+release/
+*.local
+
+# 设计图与方案文档（维护者本地持有，不进仓库）
 design/
-design/_shots
 PLAN.md
 方案文档.md
+
+# 本机中央仓库数据
+.agent_skills/
+
+# 杂项
 .zcode/
-*.spec
+.DS_Store

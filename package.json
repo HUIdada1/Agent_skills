@@ -1,0 +1,94 @@
+{
+  "name": "agent-skills",
+  "version": "0.1.0",
+  "description": "Agent_skills —— AI Agent 技能中央仓库：扫描 / 去重 / 收纳 / Junction 挂载共用 / MD 同步报告",
+  "author": "HUIdada1",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "concurrently -k \"vite\" \"wait-on tcp:1420 && electron .\"",
+    "dev:web": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "electron:build": "npm run build && electron-builder",
+    "electron:pack": "npm run build && electron-builder --dir",
+    "selftest:core": "node tools/selftest-core.cjs",
+    "gen:icon": "node tools/gen-icon.cjs"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^4.6.2",
+    "concurrently": "^8.2.2",
+    "electron": "^35.0.0",
+    "electron-builder": "^24.13.3",
+    "pinia": "^2.1.7",
+    "typescript": "~5.3.3",
+    "vite": "^4.5.3",
+    "vue": "^3.4.21",
+    "vue-tsc": "^1.8.27",
+    "wait-on": "^7.2.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "build": {
+    "appId": "com.huidada1.agentskills",
+    "productName": "Agent_skills",
+    "electronDist": "node_modules/electron/dist",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "HUIdada1",
+        "repo": "Agent_skills",
+        "releaseType": "release"
+      }
+    ],
+    "electronLanguages": [
+      "zh-CN",
+      "en-US"
+    ],
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "build/icon.png",
+        "to": "build/icon.png"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Agent_skills"
+    },
+    "portable": {
+      "artifactName": "Agent_skills-${version}-portable.exe"
+    }
+  }
+}

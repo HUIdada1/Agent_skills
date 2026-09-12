@@ -1,0 +1,35 @@
+/* ============================================================
+   Agent_skills 应用层样式（在 design token 之上做 Electron 适配）
+   ============================================================ */
+
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+/* Electron 窗口内导航项用鼠标指针 */
+.nav-item { cursor: pointer; user-select: none; }
+
+/* 滚动条与主题一致 */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 5px;
+  border: 2px solid var(--bg);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--text-3); }
+
+/* 空态面板 */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 56px 20px;
+  color: var(--text-3);
+  text-align: center;
+}
+.empty-state i { font-size: 40px; color: var(--text-3); }
+.empty-state .es-title { font-size: 14px; font-weight: 600; color: var(--text-2); }
+.empty-state .es-desc { font-size: 12px; max-width: 46ch; line-height: 1.7; }
