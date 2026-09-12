@@ -58,7 +58,7 @@ jobs:
         run: |
           $out = "release/checksums.txt"
           if (Test-Path $out) { Remove-Item $out }
-          Get-ChildItem "release" -File | Where-Object { $_.Extension -in ".exe", ".yml", ".blockmap" } | ForEach-Object {
+          Get-ChildItem "release" -File | Where-Object { $_.Extension -in ".exe", ".yml", ".blockmap" -and $_.Name -ne "builder-debug.yml" } | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
             Add-Content -Path $out -Value "$hash  $($_.Name)"
           }
