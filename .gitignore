@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+build/
+dist/
+.agent_skills/
+design/
+design/_shots
+PLAN.md
+方案文档.md
+.zcode/
