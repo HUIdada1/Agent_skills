@@ -7,6 +7,38 @@ const ALLOWED_COMMANDS = new Set([
   // 应用信息
   "get_app_version",
   "get_is_portable",
+  // 配置
+  "load_config",
+  "save_config",
+  // 工具与扫描
+  "list_tools",
+  "get_overview",
+  "list_skills",
+  "get_skill",
+  // 同步
+  "sync_plan",
+  "sync_execute",
+  "list_reports",
+  "read_report",
+  "open_report",
+  // 冲突
+  "list_conflicts",
+  "get_conflict_diff",
+  "resolve_conflict",
+  "dismiss_conflict",
+  // 挂载管理
+  "toggle_mount",
+  "repair_mounts",
+  // 回收站
+  "trash_list",
+  "trash_restore",
+  "trash_purge",
+  // 技能管理
+  "remove_skill",
+  // 目录与杂项
+  "open_data_dir",
+  "get_data_dir",
+  "browse_dir",
 ]);
 
 contextBridge.exposeInMainWorld("agentSkills", {
