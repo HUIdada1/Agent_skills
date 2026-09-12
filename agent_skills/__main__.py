@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -11,7 +12,17 @@ from agent_skills.models import DedupGroup, SkillFinding, SyncOutcome, ToolAdapt
 
 
 def _tame_console() -> None:
-    # Windows 下输出重定向到文件/管道时默认 GBK，中文会炸，统一按 UTF-8 走
+    # Windows 控制台默认 GBK 代码页，UTF-8 字节会显示成乱码：真实控制台先切 65001；
+    # 管道与重定向不动代码页（别污染调用方），统一按 UTF-8 输出
+    if os.name == "nt" and sys.stdout.isatty():
+        try:
+            import ctypes
+
+            kernel32 = ctypes.windll.kernel32
+            kernel32.SetConsoleOutputCP(65001)
+            kernel32.SetConsoleCP(65001)
+        except OSError:
+            pass
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8", errors="replace")
