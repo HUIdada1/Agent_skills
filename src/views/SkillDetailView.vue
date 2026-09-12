@@ -1,17 +1,218 @@
 <script setup lang="ts">
-// R3 轮填充真实数据
+// 技能详情：frontmatter / 指纹来源 / 挂载管理 / 文件结构（对应设计图 skill-detail.html）
+import { ref, computed, onMounted, watch } from "vue";
+import { getSkill, toggleMount, removeSkill, getDataDir, type SkillDetail } from "../api/ipc";
+import { useAppStore } from "../stores/app";
+import { fmtDate } from "../utils/format";
+
+const app = useAppStore();
+const detail = ref<SkillDetail | null>(null);
+const hubDir = ref("");
+const actionMsg = ref("");
+
+async function load() {
+  if (!app.skillDetailName) {
+    detail.value = null;
+    return;
+  }
+  detail.value = await getSkill(app.skillDetailName);
+  hubDir.value = (await getDataDir()) || "";
+}
+
+async function doToggleMount(tool: string, enable: boolean) {
+  if (!detail.value?.manifest) return;
+  const r = await toggleMount(detail.value.manifest.name, tool, enable);
+  actionMsg.value = r?.ok ? r.message : r?.message || "操作失败";
+  await load();
+}
+
+async function doRemove() {
+  if (!detail.value?.manifest) return;
+  const name = detail.value.manifest.name;
+  if (!confirm(`确定把技能 ${name} 移到回收站吗？\n真身将移入 .trash 保留 7 天，可还原。`)) return;
+  const r = await removeSkill(name);
+  if (r?.ok) {
+    app.go("library");
+  } else {
+    actionMsg.value = r?.message || "操作失败";
+  }
+}
+
+const frontmatter = computed(() => {
+  const md = detail.value?.skillMd || "";
+  const m = md.match(/^---\r?\n[\s\S]*?\r?\n---/);
+  return m ? m[0] : md.slice(0, 600);
+});
+
+const toolNames: Record<string, string> = {
+  zcode: "ZCode",
+  codex: "Codex CLI",
+  claude: "Claude Code",
+  antigravity: "Antigravity",
+  agents: "通用 ~/.agents",
+  custom: "自定义目录",
+};
+
+function toolName(id: string) {
+  return toolNames[id] || id;
+}
+
+function mountedAll(): boolean {
+  const mounts = detail.value?.manifest?.mounts || [];
+  return mounts.length > 0 && mounts.every((m) => m.enabled);
+}
+
+async function toggleAll(enable: boolean) {
+  const name = detail.value?.manifest?.name;
+  if (!name) return;
+  const mounts = detail.value?.manifest?.mounts || [];
+  for (const m of mounts) {
+    if (m.enabled === enable) continue;
+    await toggleMount(name, m.tool, enable);
+  }
+  await load();
+}
+
+watch(() => app.skillDetailName, load);
+onMounted(load);
 </script>
 
 <template>
-  <div class="page-head">
-    <div>
-      <h1>技能详情</h1>
-      <p class="sub">单个技能的版本、哈希、来源工具、挂载点与合并历史。</p>
+  <div>
+    <div style="margin-bottom:22px">
+      <a class="row muted small" style="gap:6px; cursor:pointer" @click="app.go('library')"><i class="ph ph-arrow-left"></i>返回中央技能库</a>
     </div>
-  </div>
-  <div class="empty-state">
-    <i class="ph ph-file-text"></i>
-    <div class="es-title">核心引擎接入后展示</div>
-    <div class="es-desc">下一轮完成后端引擎后，本页将展示 SKILL.md 解析结果、内容树哈希、来源与挂载表。</div>
+
+    <div class="note mt-8 mb-16" v-if="actionMsg"><i class="ph ph-info"></i><div>{{ actionMsg }}</div></div>
+
+    <template v-if="detail && detail.manifest">
+      <div class="page-head">
+        <div class="row" style="gap:14px">
+          <div class="s-icon" style="width:46px; height:46px; display:grid; place-items:center; border-radius:12px; background:var(--accent-dim); color:var(--accent); font-size:24px"><i class="ph ph-package"></i></div>
+          <div>
+            <h1 style="font-size:24px">{{ detail.manifest.name }}</h1>
+            <p class="sub" style="margin-top:4px">
+              v{{ detail.manifest.version || "0.0.0" }} · {{ detail.manifest.description?.slice(0, 60) || "（无描述）" }}
+            </p>
+          </div>
+        </div>
+        <div class="head-actions">
+          <label class="row" style="gap:8px; cursor:pointer">
+            <span class="small" style="color:var(--text-2)">全工具启用</span>
+            <span class="switch">
+              <input type="checkbox" :checked="mountedAll()" @change="toggleAll(($event.target as HTMLInputElement).checked)" />
+              <span class="track"></span>
+            </span>
+          </label>
+          <button class="btn btn-danger" @click="doRemove"><i class="ph ph-trash"></i>移到回收站</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="small" style="font-weight:600; margin-bottom:6px">描述</div>
+        <div style="color:var(--text-2); font-size:13px">{{ detail.manifest.description || "（缺 description，Agent 将无法触发该技能）" }}</div>
+      </div>
+
+      <div class="grid grid-2 section">
+        <div>
+          <h2>SKILL.md frontmatter</h2>
+          <p class="desc">解析自中央仓库真身文件，只读展示。</p>
+          <div class="code">{{ frontmatter }}</div>
+        </div>
+        <div>
+          <h2>指纹与来源</h2>
+          <p class="desc">内容树哈希是去重与变更检测的依据。</p>
+          <div class="panel" style="padding:6px 18px">
+            <div class="tool-row">
+              <div class="tool-icon"><i class="ph ph-fingerprint"></i></div>
+              <div class="t-main">
+                <div class="t-name">内容树哈希</div>
+                <div class="t-path">{{ detail.manifest.treeHash }}</div>
+              </div>
+            </div>
+            <div class="tool-row">
+              <div class="tool-icon"><i class="ph ph-git-branch"></i></div>
+              <div class="t-main">
+                <div class="t-name">收录来源</div>
+                <div class="t-path">{{ detail.manifest.sources.map((s) => `${s.tool}:${s.originalName || s.name}`).join(" · ") || "—" }}</div>
+              </div>
+            </div>
+            <div class="tool-row">
+              <div class="tool-icon"><i class="ph ph-clock-counter-clockwise"></i></div>
+              <div class="t-main">
+                <div class="t-name">合并历史</div>
+                <div class="t-path">{{ detail.manifest.mergeHistory.length }} 条记录 · 最近 {{ fmtDate(detail.manifest.mergeHistory[detail.manifest.mergeHistory.length - 1]?.at) }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>挂载状态</h2>
+        <p class="desc">中央真身与各工具目录中的 Junction。摘除某个挂载即代表该工具停用此技能。</p>
+        <div class="panel" style="padding: 6px 8px; overflow-x:auto" v-if="detail.manifest.mounts.length">
+          <table class="table">
+            <thead>
+              <tr><th>工具</th><th>挂载点</th><th>类型</th><th>状态</th><th>操作</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="m in detail.manifest.mounts" :key="m.tool + m.path">
+                <td class="strong">{{ toolName(m.tool) }}</td>
+                <td class="mono" style="font-size:11px">{{ m.path }}</td>
+                <td><span class="badge info">{{ m.type === "junction" ? "Junction" : "复制" }}</span></td>
+                <td>
+                  <span class="badge ok" v-if="m.enabled"><i class="ph ph-check"></i>有效</span>
+                  <span class="badge mute" v-else><i class="ph ph-minus-circle"></i>已停用</span>
+                </td>
+                <td>
+                  <button class="btn btn-sm" v-if="m.enabled" @click="doToggleMount(m.tool, false)"><i class="ph ph-link-break"></i>摘除</button>
+                  <button class="btn btn-sm" v-else @click="doToggleMount(m.tool, true)"><i class="ph ph-arrow-clockwise"></i>重建</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="panel" v-else>
+          <div class="empty-state" style="padding:26px">
+            <i class="ph ph-link-break"></i>
+            <div class="es-title">该技能尚未挂载到任何工具</div>
+            <div class="es-desc">去同步中心执行一次同步，将自动发布挂载到全部已连接工具。</div>
+          </div>
+        </div>
+        <div class="note mt-16">
+          <i class="ph ph-shield-check"></i>
+          <div>摘除只删除 Junction 本身，不影响中央真身与技能内容。删除 Junction 使用系统删除语义，不会穿透到目标目录。</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>变更历史</h2>
+        <p class="desc">manifest 记录的全部合并与裁决动作，可追溯。</p>
+        <div class="panel timeline">
+          <div class="tl-row" v-for="(h, i) in detail.manifest.mergeHistory" :key="i">
+            <span class="tl-time">{{ fmtDate(h.at) }}</span>
+            <div class="tl-main">
+              <div class="tl-title">{{ h.action }}</div>
+              <div class="tl-desc">{{ h.detail }}</div>
+            </div>
+          </div>
+          <div class="tl-row" v-if="!detail.manifest.mergeHistory.length">
+            <div class="tl-main"><div class="tl-desc muted">暂无记录</div></div>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <div class="panel" v-else-if="detail">
+      <div class="empty-state">
+        <i class="ph ph-package"></i>
+        <div class="es-title">该技能尚未收纳进 manifest</div>
+        <div class="es-desc">真身目录：{{ detail.dir }}。执行同步后即可在这里管理它的挂载与历史。</div>
+      </div>
+    </div>
+    <div class="panel" v-else>
+      <div class="empty-state"><i class="ph ph-file-text"></i><div class="es-title">加载中…</div></div>
+    </div>
   </div>
 </template>

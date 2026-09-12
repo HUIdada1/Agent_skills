@@ -76,6 +76,20 @@ check("归一 taste-skill → taste", dedup.normalizeName("taste-skill") === "ta
 check("归一 gpt-tasteskill → gpt-taste", dedup.normalizeName("gpt-tasteskill") === "gpt-taste");
 check("归一 Gpt_Taste v1 → gpt-taste", dedup.normalizeName("Gpt_Taste v1") === "gpt-taste");
 
+// ===== 3b. YAML 块标量 description（Anthropic skills 标准写法） =====
+{
+  const blockDir = path.join(TMP, "block-scalar-probe");
+  fs.mkdirSync(blockDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(blockDir, "SKILL.md"),
+    "---\nname: browser-skill\ndescription: |\n  Use when the user asks for automation\n  against their logged-in browser.\nmetadata:\n  version: 0.3.1\n---\n\n# body\n",
+    "utf-8"
+  );
+  const parsed = scanner.parseSkillMd(blockDir);
+  check("块标量 description 解析", parsed.ok && parsed.info.description.includes("logged-in browser"));
+  check("块标量 metadata.version 解析", parsed.info.version === "0.3.1");
+}
+
 // ===== 4. 扫描与解析 =====
 const scanned = scanner.scanAll(cfg, require("../electron/backend/adapter.cjs"));
 check("扫描到 8 个技能目录", scanned.skills.length === 8);

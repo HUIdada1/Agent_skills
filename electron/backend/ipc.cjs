@@ -60,7 +60,7 @@ function register({ ipcMain }) {
       sourceCount: survey.scanned.skills.length,
       l1Merged: survey.dedup.duplicates.length,
       l2Conflicts: survey.dedup.conflicts.length,
-      tools: survey.scannedSummary,
+      tools: survey.scanned.targets.map(({ id, name, dir, skillCount, mountCount }) => ({ id, name, dir, skillCount, mountCount })),
       mountHealth: survey.mountHealth,
       orphans: survey.orphans,
       pendingConflicts: conflicts,

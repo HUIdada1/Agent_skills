@@ -1,17 +1,203 @@
 <script setup lang="ts">
-// R3 轮填充真实数据
+// 去重与冲突：三层漏斗 / 合并记录 / 冲突裁决（diff 双栏）/ L3 提示（对应设计图 dedup.html）
+import { ref, computed, onMounted } from "vue";
+import {
+  syncPlan, listConflicts, getConflictDiff, resolveConflict, dismissConflict, loadConfig,
+  type SyncPlan, type ConflictItem, type ConflictDiff, type AppConfig,
+} from "../api/ipc";
+import { sideBySideDiff, diffStats, type DiffLine } from "../utils/diff";
+import { useAppStore } from "../stores/app";
+
+const app = useAppStore();
+const plan = ref<SyncPlan | null>(null);
+const conflicts = ref<ConflictItem[]>([]);
+const active = ref<ConflictItem | null>(null);
+const diff = ref<ConflictDiff | null>(null);
+const cfg = ref<AppConfig | null>(null);
+const actionMsg = ref("");
+
+const diffLines = ref<{ left: DiffLine[]; right: DiffLine[] } | null>(null);
+const diffStatsRow = ref({ del: 0, add: 0 });
+
+async function load() {
+  actionMsg.value = "";
+  try {
+    [plan.value, conflicts.value, cfg.value] = await Promise.all([syncPlan(), listConflicts(), loadConfig()]);
+    if (conflicts.value?.length) await pick(conflicts.value[0]);
+    else { active.value = null; diff.value = null; diffLines.value = null; }
+  } catch (e) {
+    actionMsg.value = String((e as Error).message || e);
+  }
+}
+
+async function pick(c: ConflictItem) {
+  active.value = c;
+  diff.value = null;
+  diffLines.value = null;
+  if (c.kind === "content") {
+    const d = await getConflictDiff(c.id);
+    diff.value = d;
+    if (d) {
+      diffLines.value = sideBySideDiff(d.left.md, d.right.md);
+      diffStatsRow.value = diffStats(d.left.md, d.right.md);
+    }
+  }
+}
+
+async function resolve(choice: string) {
+  if (!active.value) return;
+  const c = active.value;
+  if (!confirm(`确认裁决：${c.title}\n落选版本将移入回收站（保留 ${cfg.value?.trashDays ?? 7} 天）。`)) return;
+  const r = await resolveConflict(c.id, choice);
+  actionMsg.value = r?.message || (r?.ok ? "已裁决" : "裁决失败");
+  await load();
+}
+
+async function dismiss() {
+  if (!active.value) return;
+  await dismissConflict(active.value.id);
+  actionMsg.value = "已忽略该冲突（下次同步若仍存在会重新出现）";
+  await load();
+}
+
+const l2Count = computed(() => (conflicts.value || []).filter((c) => c.kind === "norm").length);
+const contentConflicts = computed(() => (conflicts.value || []).filter((c) => c.kind !== "norm"));
+
+onMounted(load);
 </script>
 
 <template>
-  <div class="page-head">
-    <div>
-      <h1>去重与冲突</h1>
-      <p class="sub">三层去重漏斗与冲突裁决队列，同名异容一律人工裁决。</p>
+  <div>
+    <div class="page-head">
+      <div>
+        <h1>去重与冲突</h1>
+        <p class="sub">三层漏斗逐级收窄，L1 与 L2 自动执行，L3 仅提示。所有自动合并都记录在 manifest 并可从回收站还原。</p>
+      </div>
+      <div class="head-actions">
+        <button class="btn" @click="app.go('settings')"><i class="ph ph-gear-six"></i>去重策略</button>
+        <button class="btn btn-primary" @click="load"><i class="ph ph-arrows-counter-clockwise"></i>刷新</button>
+      </div>
     </div>
-  </div>
-  <div class="empty-state">
-    <i class="ph ph-git-merge"></i>
-    <div class="es-title">核心引擎接入后展示</div>
-    <div class="es-desc">下一轮完成后端引擎后，本页将展示 L1/L2/L3 去重结果与冲突 diff 裁决界面。</div>
+
+    <div class="note mt-8" v-if="actionMsg"><i class="ph ph-info"></i><div>{{ actionMsg }}</div></div>
+
+    <div class="flow">
+      <div class="f-step">
+        <div class="f-box">
+          <div class="f-tag">L1 · 默认开启</div>
+          <div class="f-title">内容树哈希</div>
+          <div class="f-body">目录内文件排序、换行归一为 LF 后整体 SHA-256。零误报，直接合并。本次命中 <b>{{ plan?.dedup?.duplicates?.filter((d) => d.rule === "L1").length ?? "—" }}</b> 组。</div>
+        </div>
+      </div>
+      <div class="f-arrow"><i class="ph ph-arrow-right"></i></div>
+      <div class="f-step">
+        <div class="f-box">
+          <div class="f-tag">L2 · 默认开启</div>
+          <div class="f-title">名称归一</div>
+          <div class="f-body">小写化，短横线、下划线等价，剥离 taste-skill、gpt-tasteskill 这类后缀噪音。同名异容进冲突队列。</div>
+        </div>
+      </div>
+      <div class="f-arrow"><i class="ph ph-arrow-right"></i></div>
+      <div class="f-step">
+        <div class="f-box">
+          <div class="f-tag">L3 · {{ cfg?.l3?.enabled ? "已开启" : "默认关闭" }}</div>
+          <div class="f-title">语义相似度</div>
+          <div class="f-body">对名称加描述做本地相似度计算，≥ {{ cfg?.l3?.threshold ?? 0.85 }} 标记疑似同一技能，仅提示不动作。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>冲突裁决队列（{{ conflicts.length }}）</h2>
+      <p class="desc">同名异容一律人工裁决（D4a），不自动选边。落选版本一律先进回收站。</p>
+      <div class="panel" style="padding: 6px 18px;" v-if="conflicts.length">
+        <div class="tool-row" v-for="c in conflicts" :key="c.id" :style="active?.id === c.id ? 'background:var(--panel-2)' : ''">
+          <div class="tool-icon" :style="{ color: c.kind === 'norm' ? 'var(--info)' : 'var(--warn)' }"><i class="ph ph-git-merge"></i></div>
+          <div class="t-main">
+            <div class="t-name">{{ c.title }}</div>
+            <div class="t-path">{{ c.detail }}</div>
+          </div>
+          <button class="btn btn-sm" :class="{ 'btn-primary': active?.id !== c.id }" @click="pick(c)">查看 / 裁决</button>
+        </div>
+      </div>
+      <div class="panel" v-else>
+        <div class="empty-state">
+          <i class="ph ph-check-circle" style="color:var(--accent)"></i>
+          <div class="es-title">没有待裁决的冲突</div>
+          <div class="es-desc">同步引擎发现的同名异容冲突会出现在这里。</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" v-if="active && active.kind === 'content'">
+      <h2>裁决：{{ active.title }}</h2>
+      <p class="desc">{{ active.detail }}</p>
+      <div class="diff-wrap" v-if="diffLines">
+        <div class="diff-col">
+          <div class="d-head"><span>{{ diff?.left.label }} · {{ active.toolId }}</span><span class="mono" style="color:var(--text-3)">{{ diffStatsRow.del }} 处差异</span></div>
+          <div class="d-body">
+            <span v-for="(l, i) in diffLines.left" :key="i" :class="l.kind" style="display:block">{{ l.text || " " }}</span>
+          </div>
+        </div>
+        <div class="diff-col">
+          <div class="d-head"><span>{{ diff?.right.label }} · 中央版</span><span class="mono" style="color:var(--text-3)">{{ diffStatsRow.add }} 处差异</span></div>
+          <div class="d-body">
+            <span v-for="(l, i) in diffLines.right" :key="i" :class="l.kind" style="display:block">{{ l.text || " " }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="note mt-8" v-else><i class="ph ph-info"></i><div>无法读取 SKILL.md 内容（目录可能已变更），重新扫描后再试。</div></div>
+
+      <div class="row mt-16" style="gap:10px">
+        <button class="btn btn-primary" @click="resolve('keepHub')"><i class="ph ph-shield-check"></i>保留中央版</button>
+        <button class="btn" @click="resolve('keepTool')"><i class="ph ph-arrow-u-up-left"></i>保留{{ active.toolId }}版</button>
+        <button class="btn" @click="resolve('keepBoth')"><i class="ph ph-copy"></i>双保留改名</button>
+        <button class="btn" @click="dismiss"><i class="ph ph-x"></i>忽略</button>
+        <span class="muted small" style="margin-left:auto">落选版本将移入 <span class="mono">.trash\</span>，保留 {{ cfg?.trashDays ?? 7 }} 天可还原</span>
+      </div>
+    </div>
+
+    <div class="section" v-if="active && active.kind === 'norm'">
+      <h2>疑似同一技能（L2 归一提示）</h2>
+      <p class="desc">{{ active.detail }}</p>
+      <div class="row" style="gap:10px">
+        <button class="btn btn-primary" @click="resolve('same')"><i class="ph ph-git-merge"></i>确认同一，合并为一个</button>
+        <button class="btn" @click="resolve('different')"><i class="ph ph-x"></i>是不同技能，忽略</button>
+      </div>
+    </div>
+
+    <div class="section" v-if="plan?.dedup?.duplicates?.length">
+      <h2>已合并的重复组</h2>
+      <p class="desc">扫描中自动合并的组，来源工具均保留记录，可随时从回收站还原。</p>
+      <div class="panel" style="padding: 6px 8px; overflow-x:auto">
+        <table class="table">
+          <thead>
+            <tr><th>保留</th><th>合并掉</th><th>判定</th><th>依据</th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="(d, i) in plan.dedup.duplicates" :key="i">
+              <td class="strong mono">{{ d.kept.name }}</td>
+              <td class="mono">{{ d.removed.tool }}:{{ d.removed.name }}</td>
+              <td><span class="badge ok">{{ d.rule }}</span></td>
+              <td class="muted small">{{ d.basis }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section" v-if="plan?.dedup?.hints?.length">
+      <h2>疑似同一技能（L3 提示）</h2>
+      <p class="desc">语义相似度达到提示阈值，但不自动合并。可在设置页开关 L3。</p>
+      <div class="panel" style="padding: 6px 18px;">
+        <div class="tool-row" v-for="(h, i) in plan.dedup.hints" :key="i">
+          <div class="tool-icon" style="color:var(--info)"><i class="ph ph-sparkle"></i></div>
+          <div class="t-main">
+            <div class="t-name"><span class="mono">{{ h.a }}</span> 与 <span class="mono">{{ h.b }}</span></div>
+            <div class="t-path">语义相似度 {{ h.sim }}，请人工确认是否同一技能</div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>

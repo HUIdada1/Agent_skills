@@ -5,16 +5,17 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 
 /** 解析 SKILL.md frontmatter：只认 name/description/metadata.version，未知字段透传保留（R6）。
- *  宽容策略：无 frontmatter / 字段缺失不报错，由体检层给健康度。 */
+ *  支持 YAML 块标量（description: | 或 >），宽容策略：无 frontmatter / 字段缺失不报错，由体检层给健康度。 */
 function parseSkillMd(dir) {
   const file = path.join(dir, "SKILL.md");
   const raw = fs.readFileSync(file, "utf-8");
   const info = { name: "", description: "", version: "", extra: {} };
   const m = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (!m) return { ok: false, info, reason: "no-frontmatter", raw };
-  const block = m[1];
+  const lines = m[1].split(/\r?\n/);
   let currentKey = null;
-  for (const line of block.split(/\r?\n/)) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     if (!line.trim() || line.trim().startsWith("#")) continue;
     const nested = line.match(/^\s+(\S+):\s*(.*)$/);
     if (nested && currentKey === "metadata") {
@@ -24,10 +25,22 @@ function parseSkillMd(dir) {
     const top = line.match(/^([A-Za-z_-]+):\s*(.*)$/);
     if (!top) continue;
     currentKey = top[1];
-    if (top[1] === "name") info.name = stripQuotes(top[2]);
-    else if (top[1] === "description") info.description = stripQuotes(top[2]);
+    let val = stripQuotes(top[2]);
+    // 块标量：| 保留换行，> 合并为空格（折叠按 YAML 语义近似为按行拼接）
+    if (/^[|>][+-]?\d*$/.test(top[2].trim())) {
+      const parts = [];
+      let j = i + 1;
+      while (j < lines.length && /^\s+\S/.test(lines[j])) {
+        parts.push(lines[j].trim());
+        j++;
+      }
+      val = parts.join(top[2].trim()[0] === "|" ? "\n" : " ");
+      i = j - 1;
+    }
+    if (top[1] === "name") info.name = val;
+    else if (top[1] === "description") info.description = val;
     else if (top[1] === "metadata") continue;
-    else info.extra[top[1]] = stripQuotes(top[2]);
+    else info.extra[top[1]] = val;
   }
   return { ok: true, info, raw };
 }
@@ -94,7 +107,6 @@ function healthCheck(dir) {
   if (parsed.ok && !parsed.info.name) issues.push({ level: "warn", text: "frontmatter 缺 name 字段" });
   if (parsed.ok && !parsed.info.description) issues.push({ level: "bad", text: "缺 description，Agent 无法触发该技能" });
   else if (parsed.ok && parsed.info.description.length > 1024) issues.push({ level: "warn", text: "description 超长（>1024 字符），可能被截断" });
-  if (fs.readdirSync(dir).length <= 1) issues.push({ level: "warn", text: "目录近乎为空（仅 SKILL.md 或更少）" });
   return issues;
 }
 
