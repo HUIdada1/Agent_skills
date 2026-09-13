@@ -203,7 +203,7 @@ a { color: inherit; text-decoration: none; }
   flex: 1;
   min-width: 0;
   padding: 34px 42px 64px;
-  /* 内容区自行滚动：窗口再小内容也不会被窗口边缘裁掉，侧边栏常驻可见 */
+  /* 兜底：内容超宽时在本区内出现滚动条（常规高度下实际走文档级滚动，侧边栏 sticky 跟随） */
   overflow: auto;
 }
 
@@ -625,7 +625,9 @@ a { color: inherit; text-decoration: none; }
   .sidebar {
     width: 100%;
     height: auto;
-    position: static;
+    position: sticky; /* 吸附在标题条下方，页面滚动导航不被盖住 */
+    top: 40px;
+    z-index: 50;
     flex-direction: row;
     align-items: center;
     gap: 6px;

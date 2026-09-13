@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // WebDAV 同步：配置服务器 -> 多台电脑之间同步中央仓库。实时进度 + 设备列表 + 报告
-import { ref, computed, watch, nextTick, onMounted, onUnmounted } from "vue";
+import { ref, computed, watch, nextTick, onMounted, onUnmounted, onActivated } from "vue";
 import {
   loadConfig, saveConfig, webdavTest, webdavSync, webdavCancel, webdavStatus,
   webdavLogs, webdavDevices, listReports, readReport, openReport, onUpdateEvent,
@@ -56,12 +56,15 @@ const STEPS = [
 ];
 const stepActive = computed(() => {
   const i = STEPS.findIndex((s) => s.key === status.value?.stage);
-  return i < 0 ? STEPS.length - 1 : i;
+  return i < 0 ? 0 : i; // idle/未知阶段回 0（全部待命），不能回落到末步造成"假完成"
 });
 const showSteps = computed(() => {
   const s = status.value?.stage;
-  return running.value || s === "done" || s === "idle" || s === undefined;
+  return running.value || s === "done"; // idle/未配置时不显示，避免看起来像"已跑完一轮"
 });
+
+// 运行中标签显示当前阶段名；事件广播只带 stage 不带 label，前端自己映射
+const runningStageLabel = computed(() => STEPS.find((s) => s.key === status.value?.stage)?.title || "同步中");
 
 const progressHint = computed(() => {
   const st = status.value;
@@ -152,13 +155,17 @@ async function openReportFile(file: string) {
 // 同步进度走主进程广播（event:"webdav"）；运行中日志实时长出来；
 // 结束（done/error/cancelled running=false）时刷新全部数据
 let unsub: (() => void) | undefined;
-onMounted(async () => {
+// KeepAlive 下每次切回本页都重新拉磁盘配置与状态，避免设置页与本页的快照互相回滚
+onActivated(async () => {
   cfg.value = await loadConfig();
   await refreshStatus();
   await refreshLogs();
   if (configured.value) await refreshDevices();
   const all = (await listReports()) || [];
   reports.value = all.filter((r) => r.file.startsWith("webdav-"));
+});
+// 事件订阅只挂一次
+onMounted(() => {
   unsub = onUpdateEvent((payload) => {
     const p = payload as WebDavEvent;
     if (!p || p.event !== "webdav") return;
@@ -203,7 +210,7 @@ onUnmounted(() => {
       <div class="head-actions">
         <el-tag :type="running ? 'primary' : configured ? 'success' : 'info'" effect="plain" round style="align-self:center">
           <i class="ph" :class="running ? 'ph-circle-notch' : configured ? 'ph-cloud-check' : 'ph-cloud-slash'"></i>
-          {{ running ? (status?.stageLabel || "同步中") : configured ? "已连接就绪" : "未配置" }}
+          {{ running ? runningStageLabel : configured ? "已连接就绪" : "未配置" }}
         </el-tag>
         <el-button :disabled="!running" @click="cancelSync"><i class="ph ph-x"></i>取消</el-button>
         <el-button type="primary" :loading="running" @click="startSync">{{ running ? "同步中…" : "立即同步" }}</el-button>

@@ -154,7 +154,7 @@ onMounted(load);
 
     <div class="mt-16 row-between">
       <span class="muted small">共 {{ filtered.length }} / {{ skills.length }} 个技能（点击卡片查看详情与挂载管理）</span>
-      <span class="muted small mono">manifest.json</span>
+      <span class="muted small mono">数据来源 manifest.json</span>
     </div>
 
     <div class="section" v-if="healthIssues.length">

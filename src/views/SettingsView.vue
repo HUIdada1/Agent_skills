@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // 设置：工具适配器 / 同步与去重 / 中央仓库与更新 / 后台与调度 / 回收站 / 危险区
-import { ref, onMounted } from "vue";
+import { ref, onActivated } from "vue";
 import { ElMessageBox } from "element-plus";
 import { loadConfig, saveConfig, listTools, browseDir, trashList, trashRestore, trashPurge, openDataDir, getDataDir, getIsPortable, type AppConfig, type ToolRow, type TrashRow } from "../api/ipc";
 import { fmtTime, fmtSize } from "../utils/format";
@@ -67,7 +67,8 @@ async function purgeAll() {
   await load();
 }
 
-onMounted(load);
+// KeepAlive 下每次切回都重新拉磁盘配置，避免把 WebDAV 页刚保存的配置用旧快照回滚
+onActivated(load);
 </script>
 
 <template>

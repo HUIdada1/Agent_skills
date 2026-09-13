@@ -86,53 +86,53 @@ html.dark {
 }
 
 html[data-theme="light"] {
-  --el-color-primary: #047857;
-  --el-color-primary-dark-2: #03543e;
-  --el-color-primary-light-3: color-mix(in srgb, #047857 70%, #ffffff);
-  --el-color-primary-light-5: color-mix(in srgb, #047857 50%, #ffffff);
-  --el-color-primary-light-7: color-mix(in srgb, #047857 30%, #ffffff);
-  --el-color-primary-light-8: color-mix(in srgb, #047857 20%, #ffffff);
-  --el-color-primary-light-9: color-mix(in srgb, #047857 12%, #ffffff);
+  --el-color-primary: #059669;
+  --el-color-primary-dark-2: #047857;
+  --el-color-primary-light-3: color-mix(in srgb, #059669 70%, #ffffff);
+  --el-color-primary-light-5: color-mix(in srgb, #059669 50%, #ffffff);
+  --el-color-primary-light-7: color-mix(in srgb, #059669 30%, #ffffff);
+  --el-color-primary-light-8: color-mix(in srgb, #059669 20%, #ffffff);
+  --el-color-primary-light-9: color-mix(in srgb, #059669 12%, #ffffff);
 
-  --el-color-success: #047857;
-  --el-color-success-dark-2: #03543e;
-  --el-color-success-light-3: color-mix(in srgb, #047857 70%, #ffffff);
-  --el-color-success-light-5: color-mix(in srgb, #047857 50%, #ffffff);
-  --el-color-success-light-7: color-mix(in srgb, #047857 30%, #ffffff);
-  --el-color-success-light-8: color-mix(in srgb, #047857 20%, #ffffff);
-  --el-color-success-light-9: color-mix(in srgb, #047857 12%, #ffffff);
+  --el-color-success: #059669;
+  --el-color-success-dark-2: #047857;
+  --el-color-success-light-3: color-mix(in srgb, #059669 70%, #ffffff);
+  --el-color-success-light-5: color-mix(in srgb, #059669 50%, #ffffff);
+  --el-color-success-light-7: color-mix(in srgb, #059669 30%, #ffffff);
+  --el-color-success-light-8: color-mix(in srgb, #059669 20%, #ffffff);
+  --el-color-success-light-9: color-mix(in srgb, #059669 12%, #ffffff);
 
-  --el-color-warning: #92610a;
-  --el-color-warning-dark-2: #7a5008;
-  --el-color-warning-light-3: color-mix(in srgb, #92610a 70%, #ffffff);
-  --el-color-warning-light-5: color-mix(in srgb, #92610a 50%, #ffffff);
-  --el-color-warning-light-7: color-mix(in srgb, #92610a 30%, #ffffff);
-  --el-color-warning-light-8: color-mix(in srgb, #92610a 20%, #ffffff);
-  --el-color-warning-light-9: color-mix(in srgb, #92610a 12%, #ffffff);
+  --el-color-warning: #d97706;
+  --el-color-warning-dark-2: #b45309;
+  --el-color-warning-light-3: color-mix(in srgb, #d97706 70%, #ffffff);
+  --el-color-warning-light-5: color-mix(in srgb, #d97706 50%, #ffffff);
+  --el-color-warning-light-7: color-mix(in srgb, #d97706 30%, #ffffff);
+  --el-color-warning-light-8: color-mix(in srgb, #d97706 20%, #ffffff);
+  --el-color-warning-light-9: color-mix(in srgb, #d97706 12%, #ffffff);
 
-  --el-color-danger: #b03d4f;
-  --el-color-danger-dark-2: #93303f;
-  --el-color-danger-light-3: color-mix(in srgb, #b03d4f 70%, #ffffff);
-  --el-color-danger-light-5: color-mix(in srgb, #b03d4f 50%, #ffffff);
-  --el-color-danger-light-7: color-mix(in srgb, #b03d4f 30%, #ffffff);
-  --el-color-danger-light-8: color-mix(in srgb, #b03d4f 20%, #ffffff);
-  --el-color-danger-light-9: color-mix(in srgb, #b03d4f 12%, #ffffff);
+  --el-color-danger: #e11d48;
+  --el-color-danger-dark-2: #be123c;
+  --el-color-danger-light-3: color-mix(in srgb, #e11d48 70%, #ffffff);
+  --el-color-danger-light-5: color-mix(in srgb, #e11d48 50%, #ffffff);
+  --el-color-danger-light-7: color-mix(in srgb, #e11d48 30%, #ffffff);
+  --el-color-danger-light-8: color-mix(in srgb, #e11d48 20%, #ffffff);
+  --el-color-danger-light-9: color-mix(in srgb, #e11d48 12%, #ffffff);
 
-  --el-color-error: #b03d4f;
-  --el-color-error-dark-2: #93303f;
-  --el-color-error-light-3: color-mix(in srgb, #b03d4f 70%, #ffffff);
-  --el-color-error-light-5: color-mix(in srgb, #b03d4f 50%, #ffffff);
-  --el-color-error-light-7: color-mix(in srgb, #b03d4f 30%, #ffffff);
-  --el-color-error-light-8: color-mix(in srgb, #b03d4f 20%, #ffffff);
-  --el-color-error-light-9: color-mix(in srgb, #b03d4f 12%, #ffffff);
+  --el-color-error: #e11d48;
+  --el-color-error-dark-2: #be123c;
+  --el-color-error-light-3: color-mix(in srgb, #e11d48 70%, #ffffff);
+  --el-color-error-light-5: color-mix(in srgb, #e11d48 50%, #ffffff);
+  --el-color-error-light-7: color-mix(in srgb, #e11d48 30%, #ffffff);
+  --el-color-error-light-8: color-mix(in srgb, #e11d48 20%, #ffffff);
+  --el-color-error-light-9: color-mix(in srgb, #e11d48 12%, #ffffff);
 
-  --el-color-info: #2d63a8;
-  --el-color-info-dark-2: #24528d;
-  --el-color-info-light-3: color-mix(in srgb, #2d63a8 70%, #ffffff);
-  --el-color-info-light-5: color-mix(in srgb, #2d63a8 50%, #ffffff);
-  --el-color-info-light-7: color-mix(in srgb, #2d63a8 30%, #ffffff);
-  --el-color-info-light-8: color-mix(in srgb, #2d63a8 20%, #ffffff);
-  --el-color-info-light-9: color-mix(in srgb, #2d63a8 12%, #ffffff);
+  --el-color-info: #2563eb;
+  --el-color-info-dark-2: #1d4ed8;
+  --el-color-info-light-3: color-mix(in srgb, #2563eb 70%, #ffffff);
+  --el-color-info-light-5: color-mix(in srgb, #2563eb 50%, #ffffff);
+  --el-color-info-light-7: color-mix(in srgb, #2563eb 30%, #ffffff);
+  --el-color-info-light-8: color-mix(in srgb, #2563eb 20%, #ffffff);
+  --el-color-info-light-9: color-mix(in srgb, #2563eb 12%, #ffffff);
 
   --el-bg-color: #fcfdfe;
   --el-bg-color-page: #f3f4f7;

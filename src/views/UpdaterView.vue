@@ -41,8 +41,8 @@ const stepsState = computed(() => {
   const dlFailed = s === "error" && hasLatest; // 检查通过、栽在下载或校验
   const checked = ["up-to-date", "available", "downloading", "downloaded"].includes(s);
   return {
-    n1: !checked && !dlFailed && s === "error" ? "fail" : checked || dlFailed ? "done" : "",
-    n2: dlFailed ? "fail" : ["available", "downloading"].includes(s) ? "cur" : s === "downloaded" ? "done" : "",
+    n1: s === "checking" ? "cur" : !checked && !dlFailed && s === "error" ? "fail" : checked || dlFailed ? "done" : "",
+    n2: dlFailed ? "fail" : portable ? "" : ["available", "downloading"].includes(s) ? "cur" : s === "downloaded" ? "done" : "",
     n3: s === "downloaded" ? "cur" : "",
     n4: portable ? "warn" : "",
     c1: dlFailed ? "link-err" : checked ? "link-on" : "",
@@ -78,7 +78,7 @@ onUnmounted(() => unsubscribe?.());
         <p class="sub" v-if="!st">正在读取更新状态…</p>
       </div>
       <div class="head-actions" v-if="st">
-        <button class="btn" :disabled="st.status === 'checking'" @click="doCheck"><i class="ph ph-arrows-clockwise"></i>检查更新</button>
+        <button class="btn" :disabled="['checking', 'downloading', 'downloaded'].includes(st.status)" @click="doCheck"><i class="ph ph-arrows-clockwise"></i>检查更新</button>
         <button class="btn btn-primary" v-if="st.status === 'available' && !st.isPortable" @click="doDownload"><i class="ph ph-download-simple"></i>下载 v{{ st.latestVersion }}</button>
         <button class="btn btn-primary" v-else-if="st.status === 'downloading'" disabled><i class="ph ph-download-simple"></i>下载中 {{ st.percent }}%</button>
         <button class="btn btn-primary" v-else-if="st.status === 'downloaded'" @click="doInstall"><i class="ph ph-play"></i>立即重启安装</button>

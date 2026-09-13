@@ -27,6 +27,8 @@ function decodePNG(buf) {
     off += 12 + len;
   }
   const raw = zlib.inflateSync(Buffer.concat(idat));
+  if (raw.length !== h * (1 + w * 4))
+    throw new Error(`源图像素数据不完整：期望 ${h * (1 + w * 4)} 字节，实际 ${raw.length}`);
   const stride = w * 4;
   const px = new Uint8Array(w * h * 4);
   let p = 0;
