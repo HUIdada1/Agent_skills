@@ -41,16 +41,18 @@ function upsertConflict(item) {
 // 全量扫描 + 去重，仪表盘/技能库/去重页共用
 function survey(cfg) {
   const scanned = scanner.scanAll(cfg, adapter);
-  const d = dedup.dedupe(scanned, cfg);
+  // 工具自带系统技能（origin:"system"）不进去重收纳流程
+  const d = dedup.dedupe({ ...scanned, skills: scanned.skills.filter((s) => s.origin !== "system") }, cfg);
   const manifest = hub.loadManifest();
-  // 孤儿：工具目录里有，但既不是中央真身也不是任何已记录的来源/挂载名
+  // 孤儿：工具目录里有，但既不是中央真身也不是任何已记录的来源/挂载名。
+  // 系统自带技能在扫描层已标 origin，同样不算孤儿
   const known = new Set();
   for (const name of Object.keys(manifest.skills)) {
     known.add(name);
     for (const s of manifest.skills[name].sources || []) known.add(s.originalName);
     for (const mt of manifest.skills[name].mounts || []) known.add(mt.name);
   }
-  const orphans = scanned.skills.filter((s) => !known.has(s.name)).map((s) => ({ name: s.name, tool: s.tool, dir: s.dir }));
+  const orphans = scanned.skills.filter((s) => s.origin !== "system" && !known.has(s.name)).map((s) => ({ name: s.name, tool: s.tool, dir: s.dir, mtimeMs: s.mtimeMs }));
   const mountHealth = mounter.verifyAll(manifest);
   return { scanned, dedup: d, manifest, orphans, mountHealth };
 }

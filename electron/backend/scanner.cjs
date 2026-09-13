@@ -108,6 +108,62 @@ function healthCheck(dir) {
   return issues;
 }
 
+// 工具自带的系统技能目录：目录里放了 .xxx-system-skills.marker 标记文件（如 Codex 的 .system）。
+// 由工具自己维护：永不收纳进中央库、不参与挂载与孤儿判定，展示层默认隐藏、仅搜索时可见
+const SYSTEM_MARKER = /^\..+-system-skills\.marker$/;
+
+function isSystemDir(abs) {
+  let names;
+  try {
+    names = fs.readdirSync(abs);
+  } catch {
+    return false;
+  }
+  return names.some((n) => SYSTEM_MARKER.test(n));
+}
+
+// 构造一个技能条目：普通技能与系统技能共用，origin 由调用方标注
+function buildSkillEntry(abs, st) {
+  const hasSkillMd = fs.existsSync(path.join(abs, "SKILL.md"));
+  let info = { name: "", description: "", version: "" };
+  try {
+    info = parseSkillMd(abs).info;
+  } catch {}
+  return {
+    name: path.basename(abs),
+    dir: abs,
+    skillName: info.name || path.basename(abs),
+    description: info.description || "",
+    version: info.version || "",
+    treeHash: hasSkillMd || fs.readdirSync(abs).length ? treeHash(abs) : "",
+    health: healthCheck(abs),
+    mtimeMs: st.mtimeMs,
+    fileCount: countFiles(abs),
+  };
+}
+
+// 扫系统目录下的一层子技能（如 .system 里的 skill-creator、imagegen）
+function scanSystemDir(abs, toolId, out) {
+  let entries;
+  try {
+    entries = fs.readdirSync(abs, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const e of entries) {
+    if (!e.isDirectory()) continue;
+    const sub = path.join(abs, e.name);
+    let st;
+    try {
+      st = fs.lstatSync(sub);
+    } catch {
+      continue;
+    }
+    if (st.isSymbolicLink()) continue;
+    out.push({ ...buildSkillEntry(sub, st), tool: toolId, origin: "system" });
+  }
+}
+
 // 扫一个工具目录。junction 子目录不算技能本体，单独归到 mounts 里给同步层用
 function scanDir(dir, toolId) {
   const skills = [];
@@ -137,23 +193,11 @@ function scanDir(dir, toolId) {
       mounts.push({ tool: toolId, name: e.name, path: abs, target, valid: fs.existsSync(target) });
       continue;
     }
-    const hasSkillMd = fs.existsSync(path.join(abs, "SKILL.md"));
-    let info = { name: "", description: "", version: "" };
-    try {
-      info = parseSkillMd(abs).info;
-    } catch {}
-    skills.push({
-      name: e.name,
-      dir: abs,
-      tool: toolId,
-      skillName: info.name || e.name,
-      description: info.description || "",
-      version: info.version || "",
-      treeHash: hasSkillMd || fs.readdirSync(abs).length ? treeHash(abs) : "",
-      health: healthCheck(abs),
-      mtimeMs: st.mtimeMs,
-      fileCount: countFiles(abs),
-    });
+    if (isSystemDir(abs)) {
+      scanSystemDir(abs, toolId, skills);
+      continue;
+    }
+    skills.push({ ...buildSkillEntry(abs, st), tool: toolId, origin: "user" });
   }
   return { skills, mounts, foreignLinks };
 }
@@ -181,11 +225,12 @@ function scanAll(cfg, adapter) {
   const result = { targets: [], skills: [], mounts: [] };
   for (const t of targets) {
     const r = scanDir(t.dir, t.id);
-    result.targets.push({ ...t, skillCount: r.skills.length, mountCount: r.mounts.length });
+    // 技能数按用户自装口径统计，系统自带的默认不算
+    result.targets.push({ ...t, skillCount: r.skills.filter((s) => s.origin !== "system").length, mountCount: r.mounts.length });
     result.skills.push(...r.skills);
     result.mounts.push(...r.mounts);
   }
   return result;
 }
 
-module.exports = { parseSkillMd, treeHash, healthCheck, scanDir, scanAll, isBinary, collectFiles: collect };
+module.exports = { parseSkillMd, treeHash, healthCheck, scanDir, scanAll, isSystemDir, isBinary, collectFiles: collect };

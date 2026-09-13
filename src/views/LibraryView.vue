@@ -46,18 +46,26 @@ function dotOf(s: SkillRow) {
 
 const chip = ref<"all" | SkillState>("all");
 
+// 工具自带的系统技能（如 Codex .system 里的）默认隐藏，输入搜索词才现身
 const filtered = computed(() => {
   const q = query.value.trim().toLowerCase();
   return skills.value.filter((s) => {
+    if (s.origin === "system" && !q) return false;
     if (q && !(s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q))) return false;
     if (chip.value === "all") return true;
     return stateOf(s) === chip.value;
   });
 });
 
+// 统计口径跟列表一致：没在搜索时不计系统技能
+const visibleTotal = computed(() =>
+  query.value.trim() ? skills.value.length : skills.value.filter((s) => s.origin !== "system").length
+);
+
 function chipCount(kind: typeof chip.value): number {
-  if (kind === "all") return skills.value.length;
-  return skills.value.filter((s) => stateOf(s) === kind).length;
+  const pool = skills.value.filter((s) => s.origin !== "system" || !!query.value.trim());
+  if (kind === "all") return pool.length;
+  return pool.filter((s) => stateOf(s) === kind).length;
 }
 
 const healthIssues = computed(() =>
@@ -133,6 +141,7 @@ onMounted(load);
           <span class="s-name">{{ s.name }}</span>
           <span class="badge ok" v-if="s.mounts.some((m) => m.enabled)"><i class="ph ph-check-circle"></i>已挂载</span>
           <span class="badge mute" v-else-if="s.inManifest"><i class="ph ph-minus-circle"></i>未挂载</span>
+          <span class="badge warn" v-else-if="s.origin === 'system'"><i class="ph ph-shield-check"></i>系统自带</span>
           <span class="badge info" v-else><i class="ph ph-download-simple"></i>待收纳</span>
         </div>
         <div class="s-desc">{{ s.description || "（无描述，建议补齐 SKILL.md 的 description 字段）" }}</div>
@@ -153,7 +162,7 @@ onMounted(load);
     </div>
 
     <div class="mt-16 row-between">
-      <span class="muted small">共 {{ filtered.length }} / {{ skills.length }} 个技能（点击卡片查看详情与挂载管理）</span>
+      <span class="muted small">共 {{ filtered.length }} / {{ visibleTotal }} 个技能（点击卡片查看详情与挂载管理；工具自带技能仅在搜索时出现）</span>
       <span class="muted small mono">数据来源 manifest.json</span>
     </div>
 

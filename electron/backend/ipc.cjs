@@ -153,7 +153,7 @@ function register({ ipcMain }) {
   }));
   ipcMain.handle("list_skills", handle(() => {
     const survey = syncer.survey(C());
-    return survey.dedup.unique.map((e) => ({
+    const rows = survey.dedup.unique.map((e) => ({
       name: e.name,
       skillName: e.skillName,
       description: e.description,
@@ -165,6 +165,26 @@ function register({ ipcMain }) {
       mounts: survey.manifest.skills[e.name]?.mounts || [],
       mtimeMs: e.mtimeMs,
     }));
+    // 工具自带系统技能：默认隐藏（前端只在没有搜索词时过滤），永不收纳，搜索时可辨识
+    const seen = new Set(rows.map((r) => r.name));
+    for (const s of survey.scanned.skills) {
+      if (s.origin !== "system" || seen.has(s.name)) continue;
+      seen.add(s.name);
+      rows.push({
+        name: s.name,
+        skillName: s.skillName,
+        description: s.description,
+        version: s.version,
+        treeHash: s.treeHash,
+        health: s.health,
+        sources: [{ tool: s.tool, name: s.name }],
+        inManifest: false,
+        mounts: [],
+        mtimeMs: s.mtimeMs,
+        origin: "system",
+      });
+    }
+    return rows;
   }));
   // 已收纳：返回 manifest + 中央真身内容；未收纳：去各工具目录找同名真身，
   // 让详情页能展示内容和"去同步中心收纳"引导，而不是卡在加载态
@@ -201,6 +221,32 @@ function register({ ipcMain }) {
             : "",
           sources: [{ tool: t.id, name }],
         };
+      }
+    }
+    // 用户装的没找到，再找工具自带的系统技能（如 Codex .system 里的）：内容可看，但不给收纳引导
+    for (const t of adapter.resolveScanTargets(C())) {
+      let subs;
+      try {
+        subs = fs.readdirSync(t.dir, { withFileTypes: true });
+      } catch {
+        continue;
+      }
+      for (const e of subs) {
+        if (!e.isDirectory()) continue;
+        const sysDir = path.join(t.dir, e.name);
+        if (!scanner.isSystemDir(sysDir)) continue;
+        const p = path.join(sysDir, name);
+        if (fs.existsSync(p)) {
+          return {
+            manifest: null,
+            dir: "",
+            health: scanner.healthCheck(p),
+            skillMd: fs.existsSync(path.join(p, "SKILL.md"))
+              ? fs.readFileSync(path.join(p, "SKILL.md"), "utf-8")
+              : "",
+            sources: [{ tool: t.id, name, origin: "system" }],
+          };
+        }
       }
     }
     return null;

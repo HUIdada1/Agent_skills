@@ -3,7 +3,7 @@
 import { ref, onMounted } from "vue";
 import { getOverview, type Overview } from "../api/ipc";
 import { useAppStore } from "../stores/app";
-import { fmtTime } from "../utils/format";
+import { fmtTime, toolName } from "../utils/format";
 
 const app = useAppStore();
 const data = ref<Overview | null>(null);
@@ -93,7 +93,7 @@ onMounted(load);
 
       <div class="section">
         <h2>工具连接</h2>
-        <p class="desc">每个工具的全局技能目录。括号内为该目录当前可见的技能数，含 Junction 指入。</p>
+        <p class="desc">每个工具的全局技能目录。括号内为可收纳的技能数（工具自带目录不计入），含 Junction 指入。</p>
         <div class="panel" style="padding: 6px 18px;">
           <div class="tool-row" v-for="t in data.tools" :key="t.id">
             <div class="tool-icon"><i class="ph" :class="toolIcon(t.id)"></i></div>
@@ -159,7 +159,7 @@ onMounted(load);
               <div class="tool-icon"><i class="ph ph-folder-plus"></i></div>
               <div class="t-main">
                 <div class="t-name">陌生目录：{{ o.name }}</div>
-                <div class="t-path">存在于 {{ o.tool }}，待确认收纳</div>
+                <div class="t-path">存在于 {{ toolName(o.tool) }}{{ o.mtimeMs ? " · 最后修改 " + fmtTime(o.mtimeMs) : "" }}，待确认收纳</div>
               </div>
               <button class="btn btn-sm" @click="app.go('sync')"><i class="ph ph-arrow-right"></i>查看</button>
             </div>

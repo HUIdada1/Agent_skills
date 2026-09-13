@@ -2,7 +2,7 @@
 // 同步中心：扫描预览 -> 确认执行 -> 看报告。界面只讲三件事：收什么、挂什么、有什么要裁决
 import { ref, computed, onMounted } from "vue";
 import { syncPlan, syncExecute, listReports, readReport, openReport, type SyncPlan, type SyncResult, type ReportRow } from "../api/ipc";
-import { fmtTime } from "../utils/format";
+import { fmtTime, toolName } from "../utils/format";
 import { useAppStore } from "../stores/app";
 
 const app = useAppStore();
@@ -164,7 +164,33 @@ onMounted(async () => {
           <div class="es-desc">各工具与中央仓库内容一致，无需变更。</div>
         </div>
       </div>
-      <p class="muted small mt-8" v-if="plan.orphans.length">另有 {{ plan.orphans.length }} 个不认识的目录只做标记（{{ plan.orphans.slice(0, 3).map((o) => o.name).join("、") }}{{ plan.orphans.length > 3 ? " 等" : "" }}），不会自动删除。</p>
+      <!-- 孤儿目录：只标记不删除，这里把「是什么、从哪来、怎么处理」一次讲清 -->
+      <div class="panel mt-16" v-if="plan.orphans.length" style="padding: 0; overflow: hidden">
+        <div class="orphan-head">
+          <i class="ph ph-folder-plus"></i>
+          <div>
+            <div class="strong">待确认的孤儿目录（{{ plan.orphans.length }}）</div>
+            <div class="muted small">
+              工具技能目录里真实存在、但中央仓库还没接管的技能，<b>通常是你自己安装的</b>。执行一次同步就会收进中央库并原位转为挂载，此列表清零；程序只标记、不会删除它们。
+              <a class="link" @click="app.showHelp('help-orphans')">孤儿目录是什么？</a>
+              <a class="link" style="margin-left:10px" @click="app.showHelp('help-origin')">来源标识说明</a>
+            </div>
+          </div>
+        </div>
+        <table class="table">
+          <thead>
+            <tr><th>目录名</th><th>所在工具</th><th>最后修改</th><th>来源</th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="o in plan.orphans" :key="o.tool + o.name">
+              <td class="strong mono">{{ o.name }}</td>
+              <td>{{ toolName(o.tool) }}</td>
+              <td class="muted">{{ o.mtimeMs ? fmtTime(o.mtimeMs) : "—" }}</td>
+              <td><span class="badge info"><i class="ph ph-hand-tap"></i>你安装的</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <div class="note ok mt-16" v-if="result">

@@ -2,6 +2,7 @@
 import { onMounted } from "vue";
 import { useAppStore } from "./stores/app";
 import Sidebar from "./components/Sidebar.vue";
+import HelpDialog from "./components/HelpDialog.vue";
 import DashboardView from "./views/DashboardView.vue";
 import LibraryView from "./views/LibraryView.vue";
 import SkillDetailView from "./views/SkillDetailView.vue";
@@ -42,5 +43,6 @@ onMounted(() => {
         </KeepAlive>
       </div>
     </main>
+    <HelpDialog />
   </div>
 </template>

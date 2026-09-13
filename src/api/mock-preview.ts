@@ -86,6 +86,16 @@ const SKILLS = [
     mounts: [],
     mtimeMs: NOW - 12 * 60000,
   },
+  // 工具自带系统技能：默认隐藏，搜索时才出现
+  {
+    name: "skill-creator", skillName: "skill-creator",
+    description: "Codex 官方系统技能：创建新技能、改进现有技能的引导流程。",
+    version: "1.0.0", treeHash: "5d21aa", health: [], inManifest: false,
+    sources: [{ tool: "codex", name: "skill-creator", origin: "system" }],
+    mounts: [],
+    mtimeMs: NOW - 8 * 3600000,
+    origin: "system" as const,
+  },
 ];
 
 // 摆在"同步进行中"的下载阶段，方便看进度条 / 步骤条 / 日志的运行时状态
@@ -126,6 +136,13 @@ const TRASH = [
   { name: "old-skill-20260913-091501", path: "C:\\Users\\demo\\.agent_skills\\.trash\\old-skill-20260913-091501", trashedAt: NOW - 6 * 3600000, sizeBytes: 48213 },
 ];
 
+// 孤儿目录：装了但还没同步收编的技能
+const ORPHANS = [
+  { name: "gsap-scrolltrigger", tool: "codex", dir: "C:\\Users\\demo\\.codex\\skills\\gsap-scrolltrigger", mtimeMs: NOW - 5 * 86400000 },
+  { name: "stitch-design-taste", tool: "zcode", dir: "C:\\Users\\demo\\.zcode\\skills\\stitch-design-taste", mtimeMs: NOW - 26 * 3600000 },
+  { name: "yunxiao-git-tasks", tool: "zcode", dir: "C:\\Users\\demo\\.zcode\\skills\\yunxiao-git-tasks", mtimeMs: NOW - 20 * 86400000 },
+];
+
 const REPORT_TEXT = "# Agent_skills 同步报告\n\n- 设备：DESK-01\n- 下载 2 · 上传 1 · 冲突 0 · 跳过 0\n\n全部动作已记录。";
 
 export async function mockCall(cmd: string): Promise<unknown> {
@@ -149,8 +166,25 @@ export async function mockCall(cmd: string): Promise<unknown> {
     case "get_overview":
       return {
         hubDir: "C:\\Users\\demo\\.agent_skills", skillCount: SKILLS.length, manifestCount: 4, sourceCount: 6,
-        l1Merged: 2, l2Conflicts: 0, tools: [], mountHealth: [], orphans: [], pendingConflicts: [],
+        l1Merged: 2, l2Conflicts: 0, tools: [], mountHealth: [],
+        orphans: ORPHANS, pendingConflicts: [],
         recentReports: [], trashCount: TRASH.length,
+      };
+    case "sync_plan":
+      return {
+        mode: "junction",
+        actions: [
+          { type: "import", skill: "brandkit", note: "收纳 zcode:brandkit", sources: [{ tool: "zcode", name: "brandkit", dir: "C:\\Users\\demo\\.zcode\\skills\\brandkit" }] },
+          { type: "mount", skill: "brandkit", mountName: "brandkit", toolId: "zcode", parentDir: "C:\\Users\\demo\\.zcode\\skills", replaceReal: true, note: "zcode 版与中央一致，原位转挂载（原目录备份进回收站）" },
+          { type: "mount", skill: "browser-skill", mountName: "browser-skill", toolId: "codex", parentDir: "C:\\Users\\demo\\.codex\\skills", replaceReal: false, note: "codex 无此技能 → 发布挂载" },
+        ],
+        conflicts: [],
+        orphans: ORPHANS,
+        dedup: { duplicates: [], hints: [] },
+        scannedSummary: [
+          { id: "zcode", name: "ZCode", dir: "C:\\Users\\demo\\.zcode\\skills", skillCount: 15, mountCount: 0 },
+          { id: "codex", name: "Codex CLI", dir: "C:\\Users\\demo\\.codex\\skills", skillCount: 23, mountCount: 0 },
+        ],
       };
     case "list_skills": return [];
     case "list_conflicts": return [];

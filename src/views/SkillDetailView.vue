@@ -49,6 +49,9 @@ const frontmatter = computed(() => {
   return m ? m[0] : md.slice(0, 600);
 });
 
+// 工具自带的系统技能：只读展示，不给收纳引导
+const isSystemSkill = computed(() => (detail.value?.sources || []).some((s) => s.origin === "system"));
+
 const toolNames: Record<string, string> = {
   zcode: "ZCode",
   codex: "Codex CLI",
@@ -217,12 +220,16 @@ onMounted(load);
           <div class="s-icon" style="width:46px; height:46px; display:grid; place-items:center; border-radius:12px; background:var(--info-dim); color:var(--info); font-size:24px"><i class="ph ph-package"></i></div>
           <div>
             <h1 style="font-size:24px">{{ app.skillDetailName }}</h1>
-            <p class="sub" style="margin-top:4px">该技能还在各工具目录里，尚未收进中央仓库。</p>
+            <p class="sub" style="margin-top:4px" v-if="isSystemSkill">工具自动维护的系统技能，默认不在技能库展示，也不参与收纳与同步。</p>
+            <p class="sub" style="margin-top:4px" v-else>该技能还在各工具目录里，尚未收进中央仓库。</p>
           </div>
         </div>
         <div class="head-actions">
-          <span class="badge info" style="align-self:center"><i class="ph ph-download-simple"></i>待收纳</span>
-          <button class="btn btn-primary" @click="app.go('sync')"><i class="ph ph-arrows-left-right"></i>去同步中心收纳</button>
+          <span class="badge warn" v-if="isSystemSkill" style="align-self:center"><i class="ph ph-shield-check"></i>系统自带</span>
+          <template v-else>
+            <span class="badge info" style="align-self:center"><i class="ph ph-download-simple"></i>待收纳</span>
+            <button class="btn btn-primary" @click="app.go('sync')"><i class="ph ph-arrows-left-right"></i>去同步中心收纳</button>
+          </template>
         </div>
       </div>
 
@@ -239,7 +246,8 @@ onMounted(load);
         </div>
         <div>
           <h2>来源</h2>
-          <p class="desc">同步时会把下面这些目录里的同名技能合并收纳。</p>
+          <p class="desc" v-if="isSystemSkill">来自工具的系统技能目录，由工具自动维护。</p>
+          <p class="desc" v-else>同步时会把下面这些目录里的同名技能合并收纳。</p>
           <div class="panel" style="padding:6px 18px">
             <div class="tool-row" v-for="(s, i) in detail.sources || []" :key="i">
               <div class="tool-icon"><i class="ph ph-git-branch"></i></div>

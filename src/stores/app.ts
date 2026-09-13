@@ -31,6 +31,8 @@ export const useAppStore = defineStore("app", {
     theme: loadTheme(),
     version: "",
     skillDetailName: "", // 进详情页时带上技能名
+    helpOpen: false,     // 全局帮助对话框
+    helpSection: "",     // 打开时定位到的帮助小节 id
   }),
   actions: {
     applyTheme() {
@@ -52,6 +54,10 @@ export const useAppStore = defineStore("app", {
     openSkillDetail(name: string) {
       this.skillDetailName = name;
       this.activePage = "skill-detail";
+    },
+    showHelp(section = "") {
+      this.helpSection = section;
+      this.helpOpen = true;
     },
     async load() {
       this.applyTheme();

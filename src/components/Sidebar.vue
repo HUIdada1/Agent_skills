@@ -21,6 +21,9 @@ const app = useAppStore();
     <div class="sidebar-foot">
       <span>{{ app.version }}</span>
       <span class="foot-right">
+        <button class="theme-toggle" type="button" title="使用帮助" @click="app.showHelp()">
+          <i class="ph ph-question"></i>
+        </button>
         <button class="theme-toggle" type="button" title="切换明亮 / 黑暗主题" @click="app.toggleTheme()">
           <i class="ph" :class="app.theme === 'light' ? 'ph-moon' : 'ph-sun'"></i>
         </button>

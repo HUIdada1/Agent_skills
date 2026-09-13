@@ -2,7 +2,7 @@
 
 export type HealthIssue = { level: "warn" | "bad"; text: string };
 
-export type SkillSource = { tool: string; originalName?: string; name?: string; dir?: string; firstSeen?: string };
+export type SkillSource = { tool: string; originalName?: string; name?: string; dir?: string; firstSeen?: string; origin?: string };
 
 export type SkillMount = {
   tool: string;
@@ -23,6 +23,8 @@ export type SkillRow = {
   inManifest: boolean;
   mounts: SkillMount[];
   mtimeMs: number;
+  /** user=用户安装；system=工具自带（默认隐藏，搜索可见，永不收纳） */
+  origin?: "user" | "system";
 };
 
 export type Overview = {
@@ -34,7 +36,7 @@ export type Overview = {
   l2Conflicts: number;
   tools: { id: string; name: string; dir: string; skillCount: number; mountCount: number }[];
   mountHealth: { skill: string; tool: string; name: string; path: string; type: string; enabled: boolean; isLink: boolean; valid: boolean }[];
-  orphans: { name: string; tool: string; dir: string }[];
+  orphans: OrphanRow[];
   pendingConflicts: ConflictItem[];
   recentReports: ReportRow[];
   trashCount: number;
@@ -58,7 +60,7 @@ export type SyncPlan = {
   mode: "junction" | "copy";
   actions: SyncAction[];
   conflicts: ConflictItem[];
-  orphans: { name: string; tool: string; dir: string }[];
+  orphans: OrphanRow[];
   dedup: { duplicates: { kept: { name: string; tool: string }; removed: { name: string; tool: string }; rule: string; basis: string }[]; hints: { a: string; b: string; sim: number }[] };
   scannedSummary: { id: string; name: string; dir: string; skillCount: number; mountCount: number }[];
 };
@@ -122,6 +124,9 @@ export type AppConfig = {
 };
 
 export type ToolRow = { id: string; name: string; icon: string; enabled: boolean; dir: string | null; candidatePaths: string[] };
+
+// 孤儿目录：工具目录里真实存在、但中央仓库 manifest 还没记录的技能目录
+export type OrphanRow = { name: string; tool: string; dir: string; mtimeMs?: number };
 
 export type TrashRow = { name: string; path: string; trashedAt: number; sizeBytes: number };
 

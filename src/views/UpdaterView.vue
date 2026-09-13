@@ -222,6 +222,12 @@ onUnmounted(() => unsubscribe?.());
         <button class="btn btn-sm" @click="openRepoPage()"><i class="ph ph-house"></i>仓库主页</button>
         <span class="foot-hint mono">autoDownload=false · 下载由用户触发 · 安装由 before-quit 钩子接管</span>
       </div>
+
+      <!-- 作者署名 -->
+      <div class="foot-author">
+        <i class="ph ph-pen-nib"></i>
+        <span>由 <span class="author-name">沐辉玄</span> 设计与开发</span>
+      </div>
     </template>
   </div>
 </template>
