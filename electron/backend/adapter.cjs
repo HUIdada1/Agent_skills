@@ -1,10 +1,10 @@
-// 工具适配器：内置五工具 + 自定义目录，多候选路径探测（R1 路径漂移对策）
+// 五个内置工具的目录探测，外加用户自己加的自定义目录
 "use strict";
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 
-/** 内置工具元数据：icon 为 Phosphor 图标名，paths 为 ~ 下候选相对路径（按序取第一个存在的） */
+// icon 是 phosphor 图标名，paths 按 ~ 下相对路径写
 const BUILTIN_TOOLS = [
   { id: "zcode", name: "ZCode", icon: "ph-terminal-window" },
   { id: "codex", name: "Codex CLI", icon: "ph-command" },
@@ -13,7 +13,7 @@ const BUILTIN_TOOLS = [
   { id: "agents", name: "通用 ~/.agents", icon: "ph-package" },
 ];
 
-/** 单个工具的目录解析：候选路径按序探测，全部不存在时返回 null（status=missing） */
+// 候选路径按顺序找，全都没有就返回 dir: null（调用方自己看着办）
 function resolveToolDir(cfg, toolId) {
   const t = (cfg.tools || {})[toolId];
   const meta = BUILTIN_TOOLS.find((b) => b.id === toolId);
@@ -26,7 +26,6 @@ function resolveToolDir(cfg, toolId) {
   return { id: toolId, name: meta.name, icon: meta.icon, dir: null, candidatePaths: t.paths };
 }
 
-/** 全部工具 + 自定义目录的有效扫描列表（dir 存在的才参与扫描） */
 function resolveScanTargets(cfg) {
   const out = [];
   for (const meta of BUILTIN_TOOLS) {
@@ -39,7 +38,7 @@ function resolveScanTargets(cfg) {
   return out;
 }
 
-/** 设置页工具状态列表：含未启用/未找到，供 GUI 呈现 */
+// 设置页用：包含没启用/没找到的，好让界面上能看出来
 function listTools(cfg) {
   const rows = [];
   for (const meta of BUILTIN_TOOLS) {

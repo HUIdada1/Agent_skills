@@ -1,8 +1,7 @@
-// 三层去重：L1 内容树哈希（自动合并）→ L2 名称归一（同名异容进冲突队列，D4a）→ L3 语义相似（默认关，仅提示）
+// 去重：L1 内容哈希直接合并，L2 名称归一只进冲突队列，L3 相似度纯提示
 "use strict";
 
-/** 名称归一：小写、[_ ] → -、剥离尾部 skill 噪音与 -vN 版本后缀。
- *  例：taste-skill→taste、gpt-tasteskill→gpt-taste、design-taste-frontend 原样。 */
+// taste-skill -> taste，gpt-tasteskill -> gpt-taste
 function normalizeName(name) {
   let n = String(name || "").toLowerCase().replace(/[\s_]+/g, "-");
   n = n.replace(/-?skills?$/, "");
@@ -10,22 +9,14 @@ function normalizeName(name) {
   return n;
 }
 
-/**
- * 对全量扫描结果做去重分组。
- * 返回：
- *   unique      去重后的代表条目（含 sources 来源列表）
- *   duplicates  L1 合并明细 [{kept, removed, rule:"L1"}]
- *   conflicts   L2 冲突队列（同名归一、内容不同）[{key, variants:[entry]}]
- *   hints       L3 疑似相似提示（仅 enabled 时）
- */
 function dedupe(scanned, cfg) {
   const unique = [];
   const duplicates = [];
   const conflicts = [];
-  const byHash = new Map(); // treeHash → unique entry
-  const byNorm = new Map(); // normalizeName → unique entry
+  const byHash = new Map();
+  const byNorm = new Map();
 
-  // L1：同哈希直接合并（跨名也算），代表取最早出现的条目（扫描顺序即工具优先级）
+  // L1：同哈希合并（改名副本也算），代表取先扫到的那个
   for (const e of scanned.skills) {
     const hit = byHash.get(e.treeHash);
     if (hit) {
@@ -38,7 +29,7 @@ function dedupe(scanned, cfg) {
     unique.push(entry);
   }
 
-  // L2：归一同名但内容不同 → 冲突队列（不自动合并，D4a）
+  // L2：归一同名但内容不同，不自动合并，人工裁决
   for (const e of unique) {
     const key = normalizeName(e.skillName || e.name);
     if (!key) continue;
@@ -49,7 +40,7 @@ function dedupe(scanned, cfg) {
     }
   }
 
-  // L3：语义相似提示（词频余弦，纯离线；默认关闭）
+  // L3 默认关着，开了也只是提示
   const hints = [];
   if (cfg.l3 && cfg.l3.enabled) {
     const th = cfg.l3.threshold || 0.85;
@@ -68,7 +59,6 @@ function similarText(e) {
   return ((e.skillName || e.name) + " " + (e.description || "")).toLowerCase().replace(/[^a-z0-9\u4e00-\u9fa5]+/g, " ").trim();
 }
 
-/** 词频向量余弦相似度 */
 function cosine(a, b) {
   const va = new Map(), vb = new Map();
   for (const w of a.split(" ")) if (w) va.set(w, (va.get(w) || 0) + 1);

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 中央技能库：搜索 / 筛选 / 技能卡片网格 / 健康检查（对应设计图 library.html）
+// 中央技能库
 import { ref, computed, onMounted } from "vue";
 import { listSkills, repairMounts, removeSkill, type SkillRow } from "../api/ipc";
 import { useAppStore } from "../stores/app";

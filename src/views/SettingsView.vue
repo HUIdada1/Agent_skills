@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 设置：工具适配器路径 / 挂载模式 / 去重策略 / 中央仓库 / 更新 / 危险区（对应设计图 settings.html）
+// 设置
 import { ref, onMounted } from "vue";
 import { loadConfig, saveConfig, listTools, browseDir, trashList, trashRestore, trashPurge, openDataDir, getDataDir, type AppConfig, type ToolRow, type TrashRow } from "../api/ipc";
 import { fmtTime, fmtSize } from "../utils/format";

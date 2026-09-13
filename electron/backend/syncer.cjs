@@ -1,5 +1,5 @@
-// 同步状态机编排：扫描 → 去重 → 干跑预览 → 执行（收纳/发布/挂载/冲突队列）→ MD 报告
-// 安全边界（D4/D4a）：删除/覆盖先进 .trash；同名异容一律人工裁决；孤儿目录只标记
+// 同步状态机：扫描 -> 去重 -> 干跑预览 -> 执行 -> MD 报告
+// 规矩：删除/覆盖先进 .trash；同名异容不自动选边；不认识的目录只标记
 "use strict";
 const fs = require("node:fs");
 const path = require("node:path");
@@ -13,7 +13,6 @@ const report = require("./report.cjs");
 
 const emptySummary = () => ({ imported: 0, merged: 0, conflicts: 0, skipped: 0, mounted: 0, repaired: 0, cleaned: 0 });
 
-/** 冲突队列持久化：central 同名异容、工具目录异容、L2 归一疑似 */
 function conflictsFile() {
   return path.join(config.hubDir(), "conflicts.json");
 }
@@ -31,7 +30,6 @@ function saveConflicts(c) {
   fs.writeFileSync(conflictsFile(), JSON.stringify(c, null, 2), "utf-8");
 }
 
-/** 幂等落一条冲突（执行段发现的新冲突也进队列，GUI 统一裁决） */
 function upsertConflict(item) {
   const store = loadConflicts();
   if (!store.items.some((x) => x.id === item.id && !x.resolved)) {
@@ -40,12 +38,12 @@ function upsertConflict(item) {
   }
 }
 
-/** 全量扫描 + 去重分组 + 孤儿识别（仪表盘/技能库/去重页共用） */
+// 全量扫描 + 去重，仪表盘/技能库/去重页共用
 function survey(cfg) {
   const scanned = scanner.scanAll(cfg, adapter);
   const d = dedup.dedupe(scanned, cfg);
   const manifest = hub.loadManifest();
-  // 孤儿：工具目录里存在、既不是中央真身也不是任何中央技能的来源/挂载名
+  // 孤儿：工具目录里有，但既不是中央真身也不是任何已记录的来源/挂载名
   const known = new Set();
   for (const name of Object.keys(manifest.skills)) {
     known.add(name);
@@ -57,20 +55,17 @@ function survey(cfg) {
   return { scanned, dedup: d, manifest, orphans, mountHealth };
 }
 
-/**
- * 干跑预览：产出动作清单（不写盘）。
- * 动作：import（收纳）、mount（原位转挂载/发布/重建的统一执行粒度）、conflict、skip
- */
 function planSync(cfg) {
   const { scanned, dedup: d, manifest, orphans } = survey(cfg);
   const mode = cfg.mountMode === "copy" ? "copy" : "junction";
   const actions = [];
   const targets = scanned.targets;
 
-  // A) 新技能收纳：L1 去重后的唯一条目，中央没有的 → 收纳 + 所有来源原位转挂载。
-  //    模拟导入顺序：同名（L2 归一疑似）条目只有第一个能收纳成功，其余走冲突。
+  // A) 中央没有的：收纳 + 所有来源原位转挂载。
+  // simImported 模拟导入顺序——L2 归一同名的条目只有第一个能进中央，后面的走冲突
   const simImported = new Set();
-  const importedSources = new Set(); // "toolDir\u0000name" → 这些目录由 A 段排 mount，B 段跳过
+  // "工具目录\0名字"，这些位置 A 段已经排了 mount，B 段跳过
+  const importedSources = new Set();
   for (const e of d.unique) {
     if (manifest.skills[e.name]) continue;
     const canImport = !simImported.has(e.name);
@@ -88,8 +83,8 @@ function planSync(cfg) {
     }
   }
 
-  // B) 中央已有技能（含本轮将收纳的）→ 对每个工具目录做状态机判定。
-  //    本轮新收纳技能的来源目录已由 A 段处理，B 段跳过；其余目录按发布逻辑走（装一次全工具生效）。
+  // B) 中央已有的（含这轮要收纳进来的）逐个工具目录判定。
+  // 新收纳技能的来源目录上面处理过了，这里跳过；其他目录按发布走
   const importedNames = new Set(d.unique.filter((e) => !manifest.skills[e.name]).map((e) => e.name));
   const allNames = [...Object.keys(manifest.skills), ...importedNames];
   for (const name of allNames) {
@@ -115,7 +110,7 @@ function planSync(cfg) {
         if (localHash === scanner.treeHash(target)) {
           actions.push({ type: "mount", skill: name, mountName: name, toolId: t.id, parentDir: t.dir, replaceReal: true, note: `${t.id} 版与中央一致，原位转挂载（原目录备份进回收站）` });
         } else {
-          actions.push({ type: "conflict", skill: name, toolId: t.id, dir: t.dir, kind: "content", title: `${t.id}:${name} 内容冲突`, detail: "工具版与中央版内容不同，需人工裁决（D4a）" });
+          actions.push({ type: "conflict", skill: name, toolId: t.id, dir: t.dir, kind: "content", title: `${t.id}:${name} 内容冲突`, detail: "工具版与中央版内容不同，需人工裁决" });
         }
       } else {
         actions.push({ type: "mount", skill: name, mountName: name, toolId: t.id, parentDir: t.dir, replaceReal: false, note: `${t.id} 无此技能 → 发布挂载` });
@@ -123,7 +118,7 @@ function planSync(cfg) {
     }
   }
 
-  // C) L2 归一疑似冲突（提示性，不阻塞收纳；两技能仍按各自名字收纳）
+  // C) L2 归一疑似，只是提示，两边照常各自收纳
   const l2Conflicts = d.conflicts.map((c) => ({
     id: `norm:${c.key}`,
     kind: "norm",
@@ -132,7 +127,7 @@ function planSync(cfg) {
     a: c.variants[0].name, b: c.variants[1].name,
   }));
 
-  // D) 冲突落库（保留历史 id 的未裁决项 + 本轮新冲突）
+  // D) 冲突落库：没裁决过的旧项留着，norm 类一直保留到裁决为止，其余只留本轮还存在的
   const store = loadConflicts();
   const newItems = [];
   for (const a of actions.filter((x) => x.type === "conflict")) {
@@ -142,7 +137,6 @@ function planSync(cfg) {
   for (const c of l2Conflicts) {
     if (!store.items.some((x) => x.id === c.id) && !newItems.some((x) => x.id === c.id)) newItems.push({ ...c, at: new Date().toISOString() });
   }
-  // 保留未裁决旧项，剔除已不在本轮的（目录消失等）——仅清理 content/diff-link 类，norm 类一直保留直到裁决
   const kept = store.items.filter((x) => {
     if (x.resolved) return false;
     if (x.kind === "norm") return true;
@@ -162,11 +156,9 @@ function planSync(cfg) {
   };
 }
 
-/** 执行：逐动作落盘，最后写 MD 报告 */
 function executeSync(cfg, planResult) {
   const s = emptySummary();
   const result = { mode: "exec", summary: s, imports: [], merges: [], conflicts: [], mounts: [], manifestDiff: [] };
-  const addDiff = (line) => result.manifestDiff.push(line);
 
   for (const a of planResult.actions) {
     if (a.type === "import") {
@@ -174,7 +166,7 @@ function executeSync(cfg, planResult) {
       if (r.action === "imported") {
         s.imported++;
         result.imports.push({ name: a.skill, sources: a.sources.map((x) => x.tool + ":" + x.name).join(", "), action: "收纳", path: path.join(hub.skillsDir(), a.skill) });
-        addDiff(`+ skills/${a.skill} ← ${a.sources.map((x) => x.tool + ":" + x.name).join(", ")} (${a.entry.treeHash.slice(0, 12)})`);
+        result.manifestDiff.push(`+ skills/${a.skill} ← ${a.sources.map((x) => x.tool + ":" + x.name).join(", ")} (${a.entry.treeHash.slice(0, 12)})`);
       } else if (r.action === "source-added") {
         result.imports.push({ name: a.skill, sources: a.sources.map((x) => x.tool + ":" + x.name).join(", "), action: "补充来源", path: path.join(hub.skillsDir(), a.skill) });
       } else {
@@ -195,7 +187,6 @@ function executeSync(cfg, planResult) {
   return result;
 }
 
-/** 挂载执行：replaceReal 时先校验内容一致 → 原目录备份进回收站 → 建链接 */
 function doMount(cfg, a, result, s) {
   const toolDir = a.parentDir || a.dir;
   if (!toolDir || !fs.existsSync(toolDir)) {
@@ -212,11 +203,12 @@ function doMount(cfg, a, result, s) {
       result.conflicts.push({ title: `${mountName} 挂载冲突`, detail: "工具目录已有同名真实目录，需人工裁决" });
       return;
     }
+    // 覆盖前再算一次哈希，内容不一致绝不静默替换
     const central = path.join(hub.skillsDir(), a.skill);
     if (scanner.treeHash(linkPath) !== scanner.treeHash(central)) {
       s.conflicts++;
-      result.conflicts.push({ title: `${a.skill} 内容冲突`, detail: "工具版与中央版内容不同，需人工裁决（D4a）" });
-      upsertConflict({ id: `content:${a.skill}@${a.toolId || "custom"}`, kind: "content", skill: a.skill, toolId: a.toolId || "custom", dir: toolDir, title: `${a.toolId || "custom"}:${a.skill} 内容冲突`, detail: "工具版与中央版内容不同，需人工裁决（D4a）" });
+      result.conflicts.push({ title: `${a.skill} 内容冲突`, detail: "工具版与中央版内容不同，需人工裁决" });
+      upsertConflict({ id: `content:${a.skill}@${a.toolId || "custom"}`, kind: "content", skill: a.skill, toolId: a.toolId || "custom", dir: toolDir, title: `${a.toolId || "custom"}:${a.skill} 内容冲突`, detail: "工具版与中央版内容不同，需人工裁决" });
       return;
     }
     const backed = hub.toTrash(linkPath, mountName);
@@ -230,21 +222,20 @@ function doMount(cfg, a, result, s) {
   const outcome = outcomes[r.action] || r.action;
 
   if (r.action === "conflict-real-dir" || r.action === "conflict-diff-link" || r.action === "error") {
-    if (r.action !== "conflict-real-dir") s.conflicts++; // real-dir 冲突已在上方计过
+    // real-dir 冲突在上面已经计过数了
+    if (r.action !== "conflict-real-dir") s.conflicts++;
     result.conflicts.push({ title: `${mountName} 挂载异常`, detail: r.message || outcome });
     result.mounts.push({ skill: a.skill, dir: toolDir, action: "mount", outcome });
     return;
   }
   if (r.action === "already") s.skipped++;
   else s.mounted++;
-  if (r.action === "mounted") s.repaired += 0;
   result.mounts.push({ skill: a.skill, dir: toolDir, action: a.replaceReal && realExists ? "replace-mount" : "mount", outcome });
   hub.setMount(a.skill, a.toolId || "custom", linkPath, cfg.mountMode === "copy" ? "copy" : "junction", true);
   if (r.action === "mounted") result.manifestDiff.push(`+ mount ${mountName} @ ${toolDir} → skills/${a.skill}`);
 }
 
-/** 裁决内容冲突（GUI 调用）
- *  choice: keepHub（保留中央，工具版进回收站后挂载）| keepTool（工具版覆盖中央，旧中央进回收站）| keepBoth（工具版改名收纳）*/
+// 冲突裁决。keepHub: 工具版进回收站改挂中央；keepTool: 工具版覆盖中央；keepBoth: 工具版改名收纳
 function resolveContentConflict(item, choice, cfg) {
   const { skill, dir, toolId } = item;
   const central = path.join(hub.skillsDir(), skill);
@@ -297,12 +288,11 @@ function resolveContentConflict(item, choice, cfg) {
   return { ok: false, message: "未知裁决选项：" + choice };
 }
 
-/** 裁决 L2 归一疑似：确认同一 → 保留 a，b 不收纳（其原目录改挂 a）；判为不同 → 撤销提示 */
+// L2 疑似冲突：确认同一就把 b 摘掉、原目录改挂到 a；判为不同就只撤销提示
 function resolveNormConflict(item, choice, cfg) {
   const aName = item.a, bName = item.b;
   const manifest = hub.loadManifest();
   if (choice === "same") {
-    // b 已收纳则摘除回收，b 的来源目录转挂到 a
     if (manifest.skills[bName]) {
       hub.removeSkill(bName);
     }
@@ -329,7 +319,7 @@ function noteHistory(skill, detail) {
   hub.saveManifest(m);
 }
 
-/** 启停开关 = 摘除 / 重建某工具的挂载（技能粒度） */
+// 启停开关就是摘掉/重建某个工具上的挂载
 function toggleMount(skill, toolId, enable, cfg) {
   const m = hub.loadManifest();
   const s = m.skills[skill];
@@ -349,7 +339,6 @@ function toggleMount(skill, toolId, enable, cfg) {
   return { ok: true, message: enable ? "已启用" : "已停用" };
 }
 
-/** 一键重建全部失效挂载 */
 function repairMounts(cfg) {
   const m = hub.loadManifest();
   const rows = mounter.verifyAll(m);

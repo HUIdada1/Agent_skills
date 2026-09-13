@@ -1,11 +1,11 @@
-// 扫描与技能解析：SKILL.md frontmatter（宽容解析）、体检、内容树哈希（L1 基础）
+// 扫描：SKILL.md 解析、体检、内容树哈希
 "use strict";
 const fs = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 
-/** 解析 SKILL.md frontmatter：只认 name/description/metadata.version，未知字段透传保留（R6）。
- *  支持 YAML 块标量（description: | 或 >），宽容策略：无 frontmatter / 字段缺失不报错，由体检层给健康度。 */
+// 只认 name/description/metadata.version，别的字段不动它。
+// description 支持 YAML 块标量（| 或 >），anthropic 官方技能很多这么写
 function parseSkillMd(dir) {
   const file = path.join(dir, "SKILL.md");
   const raw = fs.readFileSync(file, "utf-8");
@@ -26,7 +26,6 @@ function parseSkillMd(dir) {
     if (!top) continue;
     currentKey = top[1];
     let val = stripQuotes(top[2]);
-    // 块标量：| 保留换行，> 合并为空格（折叠按 YAML 语义近似为按行拼接）
     if (/^[|>][+-]?\d*$/.test(top[2].trim())) {
       const parts = [];
       let j = i + 1;
@@ -50,8 +49,8 @@ function stripQuotes(v) {
   return s.length >= 2 && (s.startsWith('"') || s.startsWith("'")) && s.endsWith(s[0]) ? s.slice(1, -1) : s;
 }
 
-/** 内容树哈希：文件按相对路径排序、文本换行统一 LF、忽略 mtime，整体 SHA-256（L1）。
- *  二进制判定：前 8KB 含 0x00 即按原样哈希，不做换行归一。 */
+// 内容树哈希：文件按相对路径排序，文本统一成 LF 再算（忽略 mtime 和换行差异）。
+// 前 8K 有 0x00 视为二进制，原样算
 function treeHash(dir) {
   const files = [];
   collect(dir, "", files);
@@ -88,7 +87,6 @@ function isBinary(buf) {
   return false;
 }
 
-/** 体检：SKILL.md 存在性、frontmatter 合法性、描述缺失/超长、空目录 */
 function healthCheck(dir) {
   const issues = [];
   const skillFile = path.join(dir, "SKILL.md");
@@ -110,8 +108,7 @@ function healthCheck(dir) {
   return issues;
 }
 
-/** 扫描一个工具目录，产出技能条目。
- *  Junction/符号链接子目录不算技能本体：返回 mounts 区分（挂载校验在 syncer）。 */
+// 扫一个工具目录。junction 子目录不算技能本体，单独归到 mounts 里给同步层用
 function scanDir(dir, toolId) {
   const skills = [];
   const mounts = [];
@@ -132,11 +129,11 @@ function scanDir(dir, toolId) {
       continue;
     }
     if (st.isSymbolicLink()) {
-      // Junction：指向中央仓库的是正常挂载，其余算外部链接（只记录不动作）
+      // 指向中央仓库的是正常挂载，指向别处的记下来但不碰
       let target = "";
       try {
         target = fs.readlinkSync(abs);
-      } catch { /* 读取失败按外部链接 */ }
+      } catch {}
       mounts.push({ tool: toolId, name: e.name, path: abs, target, valid: fs.existsSync(target) });
       continue;
     }
@@ -144,7 +141,7 @@ function scanDir(dir, toolId) {
     let info = { name: "", description: "", version: "" };
     try {
       info = parseSkillMd(abs).info;
-    } catch { /* 无 SKILL.md 等由体检标记 */ }
+    } catch {}
     skills.push({
       name: e.name,
       dir: abs,
@@ -179,7 +176,6 @@ function countFiles(dir) {
   return n;
 }
 
-/** 全量扫描：所有有效工具目录 + 自定义目录 */
 function scanAll(cfg, adapter) {
   const targets = adapter.resolveScanTargets(cfg);
   const result = { targets: [], skills: [], mounts: [] };

@@ -1,21 +1,15 @@
-// MD 同步报告：每次同步固定骨架写入 reports/（用户硬性要求）
+// 每次同步固定骨架写一份 MD 报告到 reports/
 "use strict";
 const fs = require("node:fs");
 const path = require("node:path");
 const hub = require("./hub.cjs");
 
-function pad(n) {
-  return String(n).padStart(2, "0");
-}
+const pad = (n) => String(n).padStart(2, "0");
 
 function reportFileName(date) {
   return `sync-${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}.md`;
 }
 
-/**
- * 生成并写入同步报告。
- * result 为 syncer.run 的返回：{ mode, summary:{imported,merged,conflicts,skipped,mounted,repaired,cleaned}, imports, merges, conflicts, mounts, manifestDiff }
- */
 function writeSyncReport(result) {
   hub.ensureHub();
   const now = new Date();
@@ -63,7 +57,7 @@ function writeSyncReport(result) {
       lines.push(`- **${c.title}**：${c.detail}`);
     }
     lines.push("");
-    lines.push("同名异容冲突一律人工裁决（D4a），请在「去重与冲突」页处理。");
+    lines.push("同名异容冲突一律人工裁决，请在「去重与冲突」页处理。");
   } else {
     lines.push("（无）");
   }
@@ -98,7 +92,6 @@ function writeSyncReport(result) {
   return file;
 }
 
-/** 报告列表（GUI 时间线用，新在前） */
 function listReports(limit) {
   const dir = hub.reportsDir();
   if (!fs.existsSync(dir)) return [];
@@ -110,7 +103,7 @@ function listReports(limit) {
 }
 
 function readReport(file) {
-  // 只允许读 reports 目录内的文件（防路径穿越）
+  // 只让读 reports 目录里的东西
   const dir = hub.reportsDir();
   const p = path.join(dir, path.basename(file));
   if (!p.startsWith(dir)) throw new Error("非法路径");

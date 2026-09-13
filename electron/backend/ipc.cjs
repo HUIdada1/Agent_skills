@@ -1,4 +1,4 @@
-// IPC 命令注册中心：preload 白名单放行的命令在这里落地
+// IPC 命令都注册在这，preload 白名单和这里要一一对应
 "use strict";
 const path = require("node:path");
 const { app, shell, dialog, BrowserWindow } = require("electron");
@@ -10,7 +10,6 @@ const report = require("./report.cjs");
 const scanner = require("./scanner.cjs");
 const updater = require("./updater.cjs");
 
-/** 全局配置内存缓存：命令处理共用，save_config 时刷新 */
 let cfg = null;
 function C() {
   if (!cfg) cfg = config.loadConfig();
@@ -25,7 +24,7 @@ function fail(message) {
   return { ok: false, message: String((message && message.message) || message) };
 }
 
-/** 统一异常收口：渲染层拿到 { ok:false, message } 而不是 rejected promise */
+// 异常统一收口，渲染层拿到 { ok:false } 而不是 rejected promise
 function handle(fn) {
   return async (_event, args) => {
     try {
@@ -37,11 +36,10 @@ function handle(fn) {
 }
 
 function register({ ipcMain }) {
-  // ===== 应用信息 =====
   ipcMain.handle("get_app_version", () => app.getVersion());
   ipcMain.handle("get_is_portable", () => updater.isPortable());
 
-  // ===== 软件更新 =====
+  // 软件更新
   ipcMain.handle("get_update_status", () => updater.getStatus());
   ipcMain.handle("check_update", () => updater.check(true));
   ipcMain.handle("download_update", () => updater.download());
@@ -49,14 +47,12 @@ function register({ ipcMain }) {
   ipcMain.handle("open_release_page", () => updater.openReleases());
   ipcMain.handle("open_repo_page", () => updater.openRepo());
 
-  // ===== 配置 =====
   ipcMain.handle("load_config", handle(() => C()));
   ipcMain.handle("save_config", handle(({ config: next }) => {
     cfg = next;
     return config.saveConfig(cfg);
   }));
 
-  // ===== 工具与扫描 =====
   ipcMain.handle("list_tools", handle(() => adapter.listTools(C())));
   ipcMain.handle("get_overview", handle(() => {
     const survey = syncer.survey(C());
@@ -101,14 +97,12 @@ function register({ ipcMain }) {
       manifest: entry || null,
       dir,
       health: require("node:fs").existsSync(dir) ? scanner.healthCheck(dir) : [],
-      // 详情页展示用：SKILL.md 原文（截断交给前端）
       skillMd: require("node:fs").existsSync(path.join(dir, "SKILL.md"))
         ? require("node:fs").readFileSync(path.join(dir, "SKILL.md"), "utf-8")
         : "",
     };
   }));
 
-  // ===== 同步 =====
   ipcMain.handle("sync_plan", handle(() => syncer.planSync(C())));
   ipcMain.handle("sync_execute", handle(({ plan }) => syncer.executeSync(C(), plan)));
   ipcMain.handle("list_reports", handle(() => report.listReports(30)));
@@ -119,7 +113,6 @@ function register({ ipcMain }) {
     return ok({});
   }));
 
-  // ===== 冲突 =====
   ipcMain.handle("list_conflicts", handle(() => syncer.loadConflicts().items.filter((x) => !x.resolved)));
   ipcMain.handle("get_conflict_diff", handle(({ id }) => {
     const item = syncer.loadConflicts().items.find((x) => x.id === id);
@@ -160,19 +153,15 @@ function register({ ipcMain }) {
     return ok({});
   }));
 
-  // ===== 挂载管理 =====
   ipcMain.handle("toggle_mount", handle(({ skill, toolId, enable }) => syncer.toggleMount(skill, toolId, enable, C())));
   ipcMain.handle("repair_mounts", handle(() => syncer.repairMounts(C())));
 
-  // ===== 回收站 =====
   ipcMain.handle("trash_list", handle(() => hub.listTrash()));
   ipcMain.handle("trash_restore", handle(({ name }) => hub.restoreFromTrash(name)));
   ipcMain.handle("trash_purge", handle(() => ({ purged: hub.purgeTrash(C().trashDays || 7) })));
 
-  // ===== 技能管理 =====
   ipcMain.handle("remove_skill", handle(({ name }) => hub.removeSkill(name)));
 
-  // ===== 目录与杂项 =====
   ipcMain.handle("open_data_dir", handle(async () => {
     await shell.openPath(config.hubDir());
     return ok({});

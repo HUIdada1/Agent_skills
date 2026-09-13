@@ -1,5 +1,4 @@
-// 生成应用图标：build/icon.png（256x256）+ build/icon.ico（PNG 压缩单条目）
-// 纯 Node 实现（zlib + 手写 PNG/ICO 封装），无外部依赖。运行：node tools/gen-icon.cjs
+// 生成 build/icon.png 和 build/icon.ico，纯 Node 手搓 PNG/ICO，运行：node tools/gen-icon.cjs
 "use strict";
 const fs = require("node:fs");
 const path = require("node:path");
@@ -7,21 +6,19 @@ const zlib = require("node:zlib");
 
 const SIZE = 256;
 
-// ---------- 像素绘制 ----------
-const px = new Uint8Array(SIZE * SIZE * 4); // RGBA
+const px = new Uint8Array(SIZE * SIZE * 4);
 
 function setPixel(x, y, r, g, b, a) {
   const i = (y * SIZE + x) * 4;
   px[i] = r; px[i + 1] = g; px[i + 2] = b; px[i + 3] = a;
 }
 
-/** 圆角方形背景（圆角 56），外部透明 */
+// 圆角深色底，四角透明
 function drawBackground() {
   const radius = 56;
   const bg = [0x0b, 0x0d, 0x11];
   for (let y = 0; y < SIZE; y++) {
     for (let x = 0; x < SIZE; x++) {
-      // 到圆角矩形的覆盖判断：四角圆心法
       const cx = Math.min(Math.max(x, radius), SIZE - 1 - radius);
       const cy = Math.min(Math.max(y, radius), SIZE - 1 - radius);
       const inCorner = (x < radius || x >= SIZE - radius) && (y < radius || y >= SIZE - radius);
@@ -32,7 +29,6 @@ function drawBackground() {
   }
 }
 
-/** 射线法点在多边形内 */
 function inPolygon(pt, poly) {
   let inside = false;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -42,7 +38,7 @@ function inPolygon(pt, poly) {
   return inside;
 }
 
-/** 等距立方体（六边形切三面），翡翠绿三阶 */
+// 等距立方体，翡翠绿三个明度面
 function drawCube() {
   const cx = SIZE / 2, cy = SIZE / 2 - 4, r = 74;
   const w = r * 0.866;
@@ -50,9 +46,9 @@ function drawCube() {
   const bottom = [cx, cy + r], bl = [cx - w, cy + r / 2], tl = [cx - w, cy - r / 2];
   const center = [cx, cy];
   const faces = [
-    { poly: [top, tr, center, tl], c: [0x4c, 0xe0, 0xa7] }, // 顶面：最亮
-    { poly: [tr, br, bottom, center], c: [0x10, 0xb9, 0x81] }, // 右面：中间
-    { poly: [tl, center, bottom, bl], c: [0x0a, 0x8f, 0x66] }, // 左面：最深
+    { poly: [top, tr, center, tl], c: [0x4c, 0xe0, 0xa7] },
+    { poly: [tr, br, bottom, center], c: [0x10, 0xb9, 0x81] },
+    { poly: [tl, center, bottom, bl], c: [0x0a, 0x8f, 0x66] },
   ];
   for (let y = 0; y < SIZE; y++) {
     for (let x = 0; x < SIZE; x++) {
@@ -63,7 +59,6 @@ function drawCube() {
   }
 }
 
-// ---------- PNG 封装 ----------
 const CRC_TABLE = (() => {
   const t = new Uint32Array(256);
   for (let n = 0; n < 256; n++) {
@@ -95,7 +90,7 @@ function encodePNG() {
   ihdr.writeUInt32BE(SIZE, 4);
   ihdr[8] = 8; // bit depth
   ihdr[9] = 6; // RGBA
-  // 原始数据：每行行首 filter=0
+  // 每行行首一个 filter 字节，全用 0（None）
   const raw = Buffer.alloc(SIZE * (1 + SIZE * 4));
   for (let y = 0; y < SIZE; y++) {
     raw[y * (1 + SIZE * 4)] = 0;
@@ -109,20 +104,20 @@ function encodePNG() {
   ]);
 }
 
-// ---------- ICO 封装（单条目 256x256 PNG） ----------
+// ICO 里直接塞一条 256 的 PNG（Vista 之后都认）
 function wrapICO(png) {
   const out = Buffer.alloc(22 + png.length);
-  out.writeUInt16LE(0, 0); // reserved
-  out.writeUInt16LE(1, 2); // type: icon
-  out.writeUInt16LE(1, 4); // count
-  out[6] = 0; // width 256 → 0
-  out[7] = 0; // height 256 → 0
-  out[8] = 0; // colors
-  out[9] = 0; // reserved
-  out.writeUInt16LE(1, 10); // planes
-  out.writeUInt16LE(32, 12); // bpp
+  out.writeUInt16LE(0, 0);
+  out.writeUInt16LE(1, 2);
+  out.writeUInt16LE(1, 4);
+  out[6] = 0; // 256 写 0
+  out[7] = 0;
+  out[8] = 0;
+  out[9] = 0;
+  out.writeUInt16LE(1, 10);
+  out.writeUInt16LE(32, 12);
   out.writeUInt32LE(png.length, 14);
-  out.writeUInt32LE(22, 18); // offset
+  out.writeUInt32LE(22, 18);
   png.copy(out, 22);
   return out;
 }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 更新中心：版本对比 / 步骤 / 更新日志 / 检查-下载-安装（对应设计图 updater.html）
+// 更新中心
 import { ref, computed, onMounted, onUnmounted } from "vue";
 import {
   getUpdateStatus, checkUpdate, downloadUpdate, installUpdate, openReleasePage, openRepoPage,

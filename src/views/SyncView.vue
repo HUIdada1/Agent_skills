@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 同步中心：干跑预览 → 确认执行 → MD 报告（对应设计图 sync.html）
+// 同步中心：干跑预览 -> 确认执行 -> 看报告
 import { ref, computed, onMounted } from "vue";
 import { syncPlan, syncExecute, listReports, readReport, openReport, type SyncPlan, type SyncResult, type ReportRow } from "../api/ipc";
 import { fmtTime } from "../utils/format";

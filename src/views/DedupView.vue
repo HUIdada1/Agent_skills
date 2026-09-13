@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 去重与冲突：三层漏斗 / 合并记录 / 冲突裁决（diff 双栏）/ L3 提示（对应设计图 dedup.html）
+// 去重与冲突
 import { ref, computed, onMounted } from "vue";
 import {
   syncPlan, listConflicts, getConflictDiff, resolveConflict, dismissConflict, loadConfig,

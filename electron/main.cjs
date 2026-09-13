@@ -1,4 +1,4 @@
-// Electron 主进程入口：窗口 / 单实例锁 / 退出时静默安装更新
+// 主进程入口：窗口、单实例锁、退出时静默装更新
 "use strict";
 const path = require("node:path");
 const { app, BrowserWindow, ipcMain } = require("electron");
@@ -9,7 +9,6 @@ const DEV_URL = process.env.VITE_DEV_SERVER_URL || "http://localhost:1420";
 
 let mainWindow = null;
 
-/** 资源目录：打包后为 process.resourcesPath 的相邻 build，开发时为项目 build/ */
 function iconPath() {
   const p = app.isPackaged
     ? path.join(process.resourcesPath, "build", "icon.png")
@@ -57,7 +56,6 @@ function showWindow() {
   }
 }
 
-// ===== 单实例锁 =====
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
@@ -67,7 +65,6 @@ if (!gotLock) {
   app.whenReady().then(() => {
     ipc.register({ ipcMain, app, shell: require("electron").shell });
     createWindow();
-    // 软件更新：启动后由 updater 自行定时检查（启动 60 秒 + 每 6 小时）
     updater.init({ onShowWindow: showWindow });
 
     app.on("activate", () => {
@@ -77,11 +74,10 @@ if (!gotLock) {
   });
 
   app.on("before-quit", (e) => {
-    // 已下载完成的更新：拦截本次退出，静默安装后自动重启（triggerInstall 内部防重入）
+    // 下载完的更新：拦下这次退出，静默装完自动重启
     if (updater.pendingInstall()) {
       e.preventDefault();
       updater.triggerInstall();
-      return;
     }
   });
 

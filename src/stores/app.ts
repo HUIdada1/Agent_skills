@@ -1,5 +1,4 @@
-// 全局应用状态：当前页面 / 双主题 / 版本号。
-// 沿用参考项目模式：不引入 vue-router，页面切换由 Pinia 驱动。
+// 全局状态：当前页面 / 双主题 / 版本。没用 vue-router，切页就靠这个
 import { defineStore } from "pinia";
 import { getAppVersion } from "../api/ipc";
 
@@ -19,7 +18,7 @@ const THEME_KEY = "as-theme";
 function loadTheme(): Theme {
   try {
     const t = localStorage.getItem(THEME_KEY);
-    return t === "light" ? "light" : "dark"; // D8：默认深色
+    return t === "light" ? "light" : "dark"; // 默认深色
   } catch {
     return "dark";
   }
@@ -30,7 +29,7 @@ export const useAppStore = defineStore("app", {
     activePage: "dashboard" as PageName,
     theme: loadTheme(),
     version: "",
-    skillDetailName: "", // 从技能库进入详情页时携带
+    skillDetailName: "", // 进详情页时带上技能名
   }),
   actions: {
     applyTheme() {
@@ -40,9 +39,7 @@ export const useAppStore = defineStore("app", {
       this.theme = this.theme === "light" ? "dark" : "light";
       try {
         localStorage.setItem(THEME_KEY, this.theme);
-      } catch {
-        /* 隐私模式等场景忽略 */
-      }
+      } catch {}
       this.applyTheme();
     },
     go(page: PageName) {

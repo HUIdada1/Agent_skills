@@ -1,7 +1,5 @@
-// 软件自更新（主进程侧，双通道）
-// - 安装版：electron-updater 官方通道（latest.yml + NSIS 静默安装），下载/安装均由用户触发；
-//   下载完成后退出的静默安装由 main.cjs 的 before-quit 钩子接管（autoInstallOnAppQuit 会弹安装向导，故关闭并自行处理）。
-// - 便携版：不支持自动更新，仅读 GitHub latest.yml 直链比对版本，检测到新版提示手动下载。
+// 软件自更新
+// 安装版走 electron-updater（下载和安装都由用户点）；便携版只会读 latest.yml 比版本，提示手动下
 "use strict";
 const path = require("node:path");
 const { app, BrowserWindow, Notification, nativeImage, shell, net } = require("electron");
@@ -9,12 +7,10 @@ const config = require("./config.cjs");
 
 const GITHUB_REPO_URL = "https://github.com/HUIdada1/Agent_skills";
 const GITHUB_RELEASES_URL = GITHUB_REPO_URL + "/releases";
-// latest.yml 由 electron-builder 生成并上传到每个 Release，latest 直链恒定指向最新版（无需 API、无限流）
+// latest.yml 在每个 Release 里都有，latest 直链永远指最新版，不用调 API 也不用担心限流
 const LATEST_YML_URL = GITHUB_RELEASES_URL + "/latest/download/latest.yml";
-// 自动检查频率：启动 60 秒后首次（避开启动期），之后每 6 小时
-const FIRST_CHECK_DELAY_MS = 60 * 1000;
+const FIRST_CHECK_DELAY_MS = 60 * 1000; // 启动一分钟后再查，避开启动高峰
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
-// 手动检查防抖：30 秒内重复点击直接忽略
 const MANUAL_COOLDOWN_MS = 30 * 1000;
 const FETCH_TIMEOUT_MS = 15 * 1000;
 
@@ -22,17 +18,16 @@ let autoUpdater = null;
 try {
   ({ autoUpdater } = require("electron-updater"));
 } catch {
-  // electron-updater 未打入包（异常构建）时降级：安装版检查直接报错并提示手动更新
+  // 没打进来就只能提示手动更新了
 }
 
-let status = idleStatus(); // 模块加载即初始化，防御 init 前被 IPC 调用的时序
+let status = idleStatus();
 let lastManualCheckAt = 0;
-let installTriggered = false; // 静默安装只触发一次（quitAndInstall 内部会再次 app.quit()，需防重入）
-let currentCheckIsManual = false; // 本次检查来源：手动检查用户正看着更新中心，不弹「发现新版本」通知
+let installTriggered = false; // quitAndInstall 内部会再触发一次 quit，得防重入
+let currentCheckIsManual = false; // 手动检查时用户正看着页面，不弹系统通知
 let timer = null;
-let showWindow = null; // main.cjs 注入：显示主窗口
+let showWindow = null;
 
-/** 便携模式判定：electron-builder portable 运行时注入的目录环境变量 */
 function isPortable() {
   return !!process.env.PORTABLE_EXECUTABLE_DIR;
 }
@@ -49,7 +44,6 @@ function idleStatus() {
   };
 }
 
-/** 通知图标：打包后位于 resources/build，开发时位于项目 build/ */
 function notifyIcon() {
   try {
     const p = app.isPackaged
@@ -61,7 +55,6 @@ function notifyIcon() {
   }
 }
 
-/** 系统通知（小提示，不弹模态框）；点击跳转到更新中心 */
 function notify(title, body) {
   if (!Notification.isSupported()) return;
   const n = new Notification({ title, body, icon: notifyIcon() });
@@ -72,7 +65,6 @@ function notify(title, body) {
   n.show();
 }
 
-/** 状态变化广播给所有渲染窗口；payload 为 { event, ...状态字段 } */
 function broadcast(payload) {
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) win.webContents.send("app:event", payload);
@@ -84,7 +76,7 @@ function setState(state, extra = {}) {
   broadcast({ event: "state", ...status });
 }
 
-/** 自动检查开关：每次读盘，设置页改动即时生效 */
+// 每次读盘，设置页改完立刻生效
 function autoCheckEnabled() {
   try {
     const cfg = config.loadConfig();
@@ -94,7 +86,6 @@ function autoCheckEnabled() {
   }
 }
 
-/** 语义化版本比较：a>b 返回正数，a<b 返回负数，相等返回 0 */
 function compareVersions(a, b) {
   const pa = String(a).split(".").map((n) => parseInt(n, 10) || 0);
   const pb = String(b).split(".").map((n) => parseInt(n, 10) || 0);
@@ -105,11 +96,8 @@ function compareVersions(a, b) {
   return 0;
 }
 
-/**
- * GitHub release 说明转可读纯文本。
- * electron-updater 的 GitHub provider 取 releases atom feed 的 <content>，GitHub 已把 Markdown
- * 渲染成 HTML，需在此还原为结构化纯文本（标题换行、列表加 ·、解码实体）。
- */
+// GitHub 会把 release notes 渲染成 HTML 塞进 atom feed，这里还原成纯文本。
+// &amp; 必须最后替换，不然 &amp;lt; 会被二次解码
 function htmlToText(html) {
   let s = String(html);
   s = s.replace(/<br\s*\/?>/gi, "\n");
@@ -130,7 +118,6 @@ function htmlToText(html) {
   return s.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 }
 
-/** electron-updater 的 releaseNotes 可能是字符串或数组（均含 HTML），统一为纯文本 */
 function toNotes(releaseNotes) {
   if (typeof releaseNotes === "string") return htmlToText(releaseNotes);
   if (Array.isArray(releaseNotes)) {
@@ -144,8 +131,7 @@ function toNotes(releaseNotes) {
   return "";
 }
 
-/** 发现新版本通知（仅自动检查触发；手动检查用户正看着更新中心，不弹）。
- *  同一版本跨会话只提醒一次（config.json update.notifiedVersion）。 */
+// 同一个版本跨会话只提醒一次
 function notifyAvailable(version) {
   if (config.getUpdateNotified() === version) return;
   config.setUpdateNotified(version);
@@ -156,7 +142,6 @@ function notifyAvailable(version) {
   }
 }
 
-/** 检查/下载/安装失败的统一收口，提示用户自行去 GitHub 手动更新 */
 function onUpdateError(e) {
   const msg = e && e.message ? e.message : String(e || "未知错误");
   const action =
@@ -164,8 +149,6 @@ function onUpdateError(e) {
     status.status === "downloading" ? "下载更新失败" : "更新失败";
   setState("error", { percent: 0, message: `${action}：${msg}。请前往 GitHub 手动下载更新` });
 }
-
-// ===== 安装版：electron-updater =====
 
 function checkInstalled() {
   if (!app.isPackaged) {
@@ -177,13 +160,12 @@ function checkInstalled() {
     return status;
   }
   setState("checking");
+  // 失败走 error 事件，这里 catch 只是防 unhandled rejection
   autoUpdater.checkForUpdates().catch(() => {});
   return status;
 }
 
-// ===== 便携版：latest.yml 直链比对 =====
-// 使用 Electron net 模块（Chromium 网络栈）：自动走系统代理；手动处理 latest 直链的 302 重定向。
-
+// 便携版用 Electron 的 net 模块（走系统代理）。latest 直链会 302 到 objects.githubusercontent.com，手动跟一下
 function netFetch(url, redirectsLeft) {
   return new Promise((resolve, reject) => {
     const req = net.request(url);
@@ -197,7 +179,7 @@ function netFetch(url, redirectsLeft) {
     const timer2 = setTimeout(() => {
       if (done) return;
       done = true;
-      try { req.abort(); } catch { /* 忽略 */ }
+      try { req.abort(); } catch {}
       reject(new Error("请求超时"));
     }, FETCH_TIMEOUT_MS);
     req.on("response", (res) => {
@@ -246,7 +228,6 @@ async function checkPortable() {
   return status;
 }
 
-/** 检查入口：manual=true 为更新中心手动触发（带 30 秒防抖），否则为定时自动触发 */
 function check(manual) {
   if (status.status === "checking") return status;
   if (manual) {
@@ -264,21 +245,20 @@ function check(manual) {
   return checkInstalled();
 }
 
-/** 下载更新（仅 available 状态有效，用户点击触发） */
 function download() {
   if (isPortable() || status.status !== "available" || !autoUpdater) return status;
   autoUpdater.downloadUpdate().catch(() => {});
   return status;
 }
 
-/** 静默安装并重启（quitAndInstall 内部会再次触发 app.quit()，用 installTriggered 防重入） */
 function triggerInstall() {
   if (installTriggered || !autoUpdater || status.status !== "downloaded") return status;
   installTriggered = true;
-  config.setUpdateNotified(""); // 重置通知去重：若安装被拦截导致没装上，下次启动会重新提醒
-  autoUpdater.quitAndInstall(true, true); // isSilent：不弹安装向导；isForceRunAfter：装完自动重启
-  // 兜底：安装器启动失败时 electron-updater 只发 error 事件、不退出应用；
-  // 10 秒后进程仍在则复位标志并报错，避免「退出被吞 + 本会话无法再装」的死锁
+  // 复位通知去重，万一安装器被拦没装上，下次启动还能提醒
+  config.setUpdateNotified("");
+  autoUpdater.quitAndInstall(true, true);
+  // 杀软拦安装器时 electron-updater 只发 error 不退出进程。
+  // 10 秒后还活着说明安装没走起来，复位标志报错，不然退出流程被吞掉
   setTimeout(() => {
     if (installTriggered) {
       installTriggered = false;
@@ -288,17 +268,14 @@ function triggerInstall() {
   return status;
 }
 
-/** before-quit 钩子判定：已下载完成且尚未触发安装 */
 function pendingInstall() {
   return !installTriggered && status.status === "downloaded" && !!autoUpdater && !isPortable();
 }
 
-/** 打开 GitHub Releases 页（便携版手动下载 / 失败兜底入口） */
 function openReleases() {
   shell.openExternal(GITHUB_RELEASES_URL);
 }
 
-/** 打开 GitHub 仓库主页 */
 function openRepo() {
   shell.openExternal(GITHUB_REPO_URL);
 }
@@ -320,19 +297,14 @@ function bindUpdaterEvents() {
   autoUpdater.on("error", (e) => onUpdateError(e));
 }
 
-/**
- * 初始化：绑定事件并启动定时检查。
- * 「发现新版本」通知只在自动检查时弹；手动检查由更新中心按钮触发，不弹通知。
- */
 function init(opts) {
   showWindow = (opts && opts.onShowWindow) || null;
   status = idleStatus();
   if (autoUpdater) {
-    autoUpdater.autoDownload = false; // 下载由用户在更新中心触发
-    autoUpdater.autoInstallOnAppQuit = false; // 退出安装自行接管（默认实现会弹安装向导）
+    autoUpdater.autoDownload = false; // 下载让用户自己点
+    autoUpdater.autoInstallOnAppQuit = false; // 退出安装自己接管，默认实现会弹向导
     bindUpdaterEvents();
   }
-  // 开发模式不参与更新，不启动定时器（打包环境才跑「启动 60 秒 + 每 6 小时」）
   if (app.isPackaged) timer = setTimeout(tick, FIRST_CHECK_DELAY_MS);
 }
 

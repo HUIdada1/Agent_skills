@@ -1,7 +1,5 @@
-# 发布流水线：推 tag（v*）触发。
-# electron-builder --publish always 读取 package.json 的 version，创建同名 Release 并上传
-# NSIS 安装包 / 便携版 exe / latest.yml / blockmap。客户端（安装版 electron-updater / 便携版
-# latest.yml 比对）发布后立即可见。
+# 推 tag 发版。electron-builder --publish always 会按 package.json 的 version 建 Release，
+# 上传安装包 / 便携版 / latest.yml / blockmap
 name: Release
 
 on:
@@ -9,7 +7,6 @@ on:
     tags:
       - "v*"
 
-# 防止并发发版竞争同一 Release
 concurrency:
   group: release
   cancel-in-progress: false
@@ -18,7 +15,7 @@ jobs:
   build:
     runs-on: windows-latest
     permissions:
-      contents: write # 创建 Release 必需，否则 electron-builder 发布 403
+      contents: write # 不给这个 electron-builder 发布会 403
     steps:
       - uses: actions/checkout@v4
 
@@ -39,7 +36,6 @@ jobs:
           cache: npm
 
       - name: 安装依赖
-        # .npmrc 的 npmmirror 镜像在 CI 同样生效；若 Electron 二进制下载失败，临时移除 .npmrc 重试
         run: npm ci
 
       - name: 类型检查与前端构建（vue-tsc 门禁）
@@ -76,7 +72,7 @@ jobs:
         shell: bash
         run: |
           PKG_VERSION="$(node -p "require('./package.json').version")"
-          # 用带 tag 的直链（无 latest 路由索引延迟）；客户端安装版/便携版都依赖该资产
+          # 用带 tag 的直链，latest 路由有索引延迟；客户端就靠这个文件
           URL="https://github.com/HUIdada1/Agent_skills/releases/download/v${PKG_VERSION}/latest.yml"
           for i in 1 2 3 4 5 6; do
             if curl -fsSL "$URL" 2>/dev/null | grep -q "^version: ${PKG_VERSION}$"; then

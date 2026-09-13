@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 技能详情：frontmatter / 指纹来源 / 挂载管理 / 文件结构（对应设计图 skill-detail.html）
+// 技能详情
 import { ref, computed, onMounted, watch } from "vue";
 import { getSkill, toggleMount, removeSkill, getDataDir, type SkillDetail } from "../api/ipc";
 import { useAppStore } from "../stores/app";

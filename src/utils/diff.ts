@@ -1,12 +1,10 @@
-// 行级 diff（LCS）：产出左右两列对齐的行数组，供冲突裁决双栏展示
+// 行级 diff（LCS），输出左右两列等长的行序列，方便并排渲染
 export type DiffLine = { text: string; kind: "ctx" | "del" | "add" | "gap" };
 
-/** 对两段文本做行级对比，返回对齐的左右行序列（等长，便于逐行并排渲染） */
 export function sideBySideDiff(leftText: string, rightText: string): { left: DiffLine[]; right: DiffLine[] } {
   const a = leftText.split("\n");
   const b = rightText.split("\n");
   const n = a.length, m = b.length;
-  // LCS 动态规划表（技能文件规模小，直接 O(n*m)）
   const dp: number[][] = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
   for (let i = n - 1; i >= 0; i--) {
     for (let j = m - 1; j >= 0; j--) {
@@ -36,7 +34,6 @@ export function sideBySideDiff(leftText: string, rightText: string): { left: Dif
   return { left, right };
 }
 
-/** 统计差异行数（摘要用） */
 export function diffStats(leftText: string, rightText: string): { del: number; add: number } {
   const { left, right } = sideBySideDiff(leftText, rightText);
   return { del: left.filter((l) => l.kind === "del").length, add: right.filter((l) => l.kind === "add").length };

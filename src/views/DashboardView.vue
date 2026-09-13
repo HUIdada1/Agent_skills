@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 仪表盘：中央仓库统计 / 工具连接 / 最近同步 / 待办事项（对应设计图 dashboard.html）
+// 仪表盘
 import { ref, onMounted } from "vue";
 import { getOverview, type Overview } from "../api/ipc";
 import { useAppStore } from "../stores/app";

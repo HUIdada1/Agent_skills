@@ -1,4 +1,4 @@
-// 与 electron/backend 数据契约对齐的前端类型定义
+// 跟 electron/backend 返回的数据结构一一对应
 
 export type HealthIssue = { level: "warn" | "bad"; text: string };
 
@@ -124,7 +124,6 @@ export type SkillDetail = {
   skillMd: string;
 };
 
-/** 更新状态快照（主进程 updater.cjs 维护，经 invoke 拉取 + app:event 事件推送） */
 export type UpdateStatus = {
   status: "idle" | "checking" | "up-to-date" | "available" | "downloading" | "downloaded" | "error";
   isPortable: boolean;
@@ -135,5 +134,4 @@ export type UpdateStatus = {
   message: string;
 };
 
-/** 主进程推送的更新事件：event="state" 时其余字段为完整状态；event="focus-update" 为通知点击跳转信号 */
 export type UpdateEvent = UpdateStatus & { event: "state" | "focus-update" };

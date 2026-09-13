@@ -1,13 +1,11 @@
-// 中央仓库：manifest.json 读写、技能收纳、回收站（7 天兜底）
+// 中央仓库：manifest 读写、收纳、回收站
 "use strict";
 const fs = require("node:fs");
 const path = require("node:path");
 const config = require("./config.cjs");
 
-const MANIFEST_FILE = "manifest.json";
-
 function manifestFile() {
-  return path.join(config.hubDir(), MANIFEST_FILE);
+  return path.join(config.hubDir(), "manifest.json");
 }
 
 function skillsDir() {
@@ -23,9 +21,8 @@ function reportsDir() {
 }
 
 function loadManifest() {
-  const p = manifestFile();
   try {
-    return JSON.parse(fs.readFileSync(p, "utf-8"));
+    return JSON.parse(fs.readFileSync(manifestFile(), "utf-8"));
   } catch {
     return { version: 1, skills: {}, updatedAt: null };
   }
@@ -36,14 +33,12 @@ function saveManifest(m) {
   fs.writeFileSync(manifestFile(), JSON.stringify(m, null, 2), "utf-8");
 }
 
-/** 收纳一个技能：srcDir 复制为中央唯一真身，manifest 记录来源/哈希/合并历史 */
 function importSkill(entry) {
   const m = loadManifest();
   const dest = path.join(skillsDir(), entry.name);
   if (fs.existsSync(dest)) {
     const old = m.skills[entry.name];
     if (old && old.treeHash === entry.treeHash) {
-      // 已存在同内容：仅补记来源
       mergeSources(old, entry);
       saveManifest(m);
       return { action: "source-added", name: entry.name };
@@ -74,7 +69,6 @@ function mergeSources(oldEntry, entry) {
   }
 }
 
-/** 记录挂载点到 manifest（mounter 执行成功后调用） */
 function setMount(name, tool, mountPath, type, enabled) {
   const m = loadManifest();
   const s = m.skills[name];
@@ -96,7 +90,7 @@ function mountNameOf(mountPath) {
   return path.basename(mountPath);
 }
 
-/** 移入回收站：任何删除/覆盖的必经之路（D4） */
+// 删除/覆盖都走这里，先进 .trash
 function toTrash(absPath, tag) {
   const trash = trashDir();
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -105,7 +99,6 @@ function toTrash(absPath, tag) {
   return dest;
 }
 
-/** 回收站清单（含可回滚信息与占用） */
 function listTrash() {
   const trash = trashDir();
   const items = [];
@@ -123,11 +116,10 @@ function listTrash() {
   return items;
 }
 
-/** 从回收站还原到指定目录（默认原中央 skills 下同名，占用时返回错误） */
 function restoreFromTrash(trashName, destParent) {
   const src = path.join(trashDir(), trashName);
   const base = destParent || skillsDir();
-  // 还原时剥离时间戳前缀（如 2026-09-13T00-00-00-000Z-）
+  // 剥掉回收站命名里的时间戳前缀
   const original = trashName.replace(/^\d{4}-\d{2}-\d{2}T[0-9-]+Z-/, "");
   const dest = path.join(base, original);
   if (fs.existsSync(dest)) return { ok: false, message: `目标已存在：${dest}` };
@@ -135,7 +127,6 @@ function restoreFromTrash(trashName, destParent) {
   return { ok: true, dest };
 }
 
-/** 清理超期回收站（默认 7 天） */
 function purgeTrash(days) {
   const limit = Date.now() - (days || 7) * 24 * 3600 * 1000;
   let purged = 0;
@@ -160,7 +151,7 @@ function dirSize(p) {
     for (const e of entries) {
       const abs = path.join(d, e.name);
       if (e.isFile()) {
-        try { n += fs.statSync(abs).size; } catch { /* 忽略 */ }
+        try { n += fs.statSync(abs).size; } catch {}
       } else if (e.isDirectory()) walk(abs);
     }
   };
@@ -168,7 +159,7 @@ function dirSize(p) {
   return n;
 }
 
-/** 删除中央技能（先进回收站，摘除挂载由 syncer 处理） */
+// 删中央技能：真身进回收站，manifest 移除（挂载不在这处理）
 function removeSkill(name) {
   const dir = path.join(skillsDir(), name);
   if (!fs.existsSync(dir)) return { ok: false, message: "技能不存在" };
