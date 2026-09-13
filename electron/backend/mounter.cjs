@@ -13,9 +13,9 @@ function isLink(p) {
   }
 }
 
-// junction 的 readlink 会带 \\?\ 前缀，比较前去掉；Windows 不区分大小写
+// junction 的 readlink 会带 \\?\ 前缀和尾部反斜杠，比较前去掉；Windows 不区分大小写
 function normalizeTarget(t) {
-  const s = String(t || "").replace(/^\\\?\\/, "");
+  const s = String(t || "").replace(/^\\\?\\/, "").replace(/[\\/]+$/, "");
   return process.platform === "win32" ? s.toLowerCase() : s;
 }
 

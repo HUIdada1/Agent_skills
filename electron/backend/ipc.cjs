@@ -8,6 +8,7 @@ const syncer = require("./syncer.cjs");
 const hub = require("./hub.cjs");
 const report = require("./report.cjs");
 const scanner = require("./scanner.cjs");
+const mounter = require("./mounter.cjs");
 const updater = require("./updater.cjs");
 
 let cfg = null;
@@ -88,19 +89,44 @@ function register({ ipcMain }) {
       mtimeMs: e.mtimeMs,
     }));
   }));
+  // 已收纳：返回 manifest + 中央真身内容；未收纳：去各工具目录找同名真身，
+  // 让详情页能展示内容和"去同步中心收纳"引导，而不是卡在加载态
   ipcMain.handle("get_skill", handle(({ name }) => {
+    const fs = require("node:fs");
     const m = hub.loadManifest();
     const entry = m.skills[name];
     const dir = path.join(hub.skillsDir(), name);
-    if (!entry && !require("node:fs").existsSync(dir)) return null;
-    return {
-      manifest: entry || null,
-      dir,
-      health: require("node:fs").existsSync(dir) ? scanner.healthCheck(dir) : [],
-      skillMd: require("node:fs").existsSync(path.join(dir, "SKILL.md"))
-        ? require("node:fs").readFileSync(path.join(dir, "SKILL.md"), "utf-8")
-        : "",
-    };
+    if (entry || fs.existsSync(dir)) {
+      return {
+        manifest: entry ? {
+          ...entry,
+          sources: entry.sources || [],
+          mounts: entry.mounts || [],
+          mergeHistory: entry.mergeHistory || [],
+        } : null,
+        dir,
+        health: fs.existsSync(dir) ? scanner.healthCheck(dir) : [],
+        skillMd: fs.existsSync(path.join(dir, "SKILL.md"))
+          ? fs.readFileSync(path.join(dir, "SKILL.md"), "utf-8")
+          : "",
+        sources: [],
+      };
+    }
+    for (const t of adapter.resolveScanTargets(C())) {
+      const p = path.join(t.dir, name);
+      if (fs.existsSync(p) && !mounter.isLink(p)) {
+        return {
+          manifest: null,
+          dir: "",
+          health: scanner.healthCheck(p),
+          skillMd: fs.existsSync(path.join(p, "SKILL.md"))
+            ? fs.readFileSync(path.join(p, "SKILL.md"), "utf-8")
+            : "",
+          sources: [{ tool: t.id, name }],
+        };
+      }
+    }
+    return null;
   }));
 
   ipcMain.handle("sync_plan", handle(() => syncer.planSync(C())));

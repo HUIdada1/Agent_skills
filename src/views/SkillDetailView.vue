@@ -1,12 +1,13 @@
 <script setup lang="ts">
-// 技能详情
+// 技能详情：已收纳（manifest）/ 待收纳（工具目录里还没进中央仓库）/ 不存在 / 加载中 四态
 import { ref, computed, onMounted, watch } from "vue";
-import { getSkill, toggleMount, removeSkill, getDataDir, type SkillDetail } from "../api/ipc";
+import { getSkill, toggleMount, removeSkill, type SkillDetail } from "../api/ipc";
 import { useAppStore } from "../stores/app";
 import { fmtDate } from "../utils/format";
 
 const app = useAppStore();
-const detail = ref<SkillDetail | null>(null);
+// undefined = 加载中，null = 技能不存在
+const detail = ref<SkillDetail | null | undefined>(undefined);
 const hubDir = ref("");
 const actionMsg = ref("");
 
@@ -15,8 +16,12 @@ async function load() {
     detail.value = null;
     return;
   }
-  detail.value = await getSkill(app.skillDetailName);
-  hubDir.value = (await getDataDir()) || "";
+  detail.value = undefined;
+  try {
+    detail.value = await getSkill(app.skillDetailName);
+  } catch {
+    detail.value = null;
+  }
 }
 
 async function doToggleMount(tool: string, enable: boolean) {
@@ -85,6 +90,7 @@ onMounted(load);
 
     <div class="note mt-8 mb-16" v-if="actionMsg"><i class="ph ph-info"></i><div>{{ actionMsg }}</div></div>
 
+    <!-- 已收纳：完整管理视图 -->
     <template v-if="detail && detail.manifest">
       <div class="page-head">
         <div class="row" style="gap:14px">
@@ -204,11 +210,61 @@ onMounted(load);
       </div>
     </template>
 
-    <div class="panel" v-else-if="detail">
+    <!-- 待收纳：内容可看，引导去同步 -->
+    <template v-else-if="detail">
+      <div class="page-head">
+        <div class="row" style="gap:14px">
+          <div class="s-icon" style="width:46px; height:46px; display:grid; place-items:center; border-radius:12px; background:var(--info-dim); color:var(--info); font-size:24px"><i class="ph ph-package"></i></div>
+          <div>
+            <h1 style="font-size:24px">{{ app.skillDetailName }}</h1>
+            <p class="sub" style="margin-top:4px">该技能还在各工具目录里，尚未收进中央仓库。</p>
+          </div>
+        </div>
+        <div class="head-actions">
+          <span class="badge info" style="align-self:center"><i class="ph ph-download-simple"></i>待收纳</span>
+          <button class="btn btn-primary" @click="app.go('sync')"><i class="ph ph-arrows-left-right"></i>去同步中心收纳</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="small" style="font-weight:600; margin-bottom:6px">描述</div>
+        <div style="color:var(--text-2); font-size:13px">{{ detail.health.length ? detail.health.map((h) => h.text).join("；") : "SKILL.md 体检通过，无异常提醒" }}</div>
+      </div>
+
+      <div class="grid grid-2 section">
+        <div>
+          <h2>SKILL.md frontmatter</h2>
+          <p class="desc">读取自工具目录中的原始文件，收纳后以中央仓库为准。</p>
+          <div class="code">{{ frontmatter }}</div>
+        </div>
+        <div>
+          <h2>来源</h2>
+          <p class="desc">同步时会把下面这些目录里的同名技能合并收纳。</p>
+          <div class="panel" style="padding:6px 18px">
+            <div class="tool-row" v-for="(s, i) in detail.sources || []" :key="i">
+              <div class="tool-icon"><i class="ph ph-git-branch"></i></div>
+              <div class="t-main">
+                <div class="t-name">{{ toolName(s.tool) }}</div>
+                <div class="t-path">{{ s.name }}</div>
+              </div>
+            </div>
+            <div class="tool-row" v-if="!(detail.sources || []).length">
+              <div class="t-main"><div class="t-path">未探测到来源目录，请先执行一次同步扫描</div></div>
+            </div>
+          </div>
+          <div class="note mt-16">
+            <i class="ph ph-lightbulb"></i>
+            <div>收纳后中央仓库只保留一份真身，各工具目录改为 Junction 共用，改一处全部生效。</div>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <div class="panel" v-else-if="detail === null">
       <div class="empty-state">
-        <i class="ph ph-package"></i>
-        <div class="es-title">该技能尚未收纳进 manifest</div>
-        <div class="es-desc">真身目录：{{ detail.dir }}。执行同步后即可在这里管理它的挂载与历史。</div>
+        <i class="ph ph-file-x"></i>
+        <div class="es-title">找不到这个技能</div>
+        <div class="es-desc">它可能已被移到回收站，或目录已改名。回技能库刷新看看。</div>
       </div>
     </div>
     <div class="panel" v-else>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // 去重与冲突
-import { ref, computed, onMounted } from "vue";
+import { ref, onMounted } from "vue";
 import {
   syncPlan, listConflicts, getConflictDiff, resolveConflict, dismissConflict, loadConfig,
   type SyncPlan, type ConflictItem, type ConflictDiff, type AppConfig,
@@ -60,9 +60,6 @@ async function dismiss() {
   await load();
 }
 
-const l2Count = computed(() => (conflicts.value || []).filter((c) => c.kind === "norm").length);
-const contentConflicts = computed(() => (conflicts.value || []).filter((c) => c.kind !== "norm"));
-
 onMounted(load);
 </script>
 
@@ -71,7 +68,7 @@ onMounted(load);
     <div class="page-head">
       <div>
         <h1>去重与冲突</h1>
-        <p class="sub">三层漏斗逐级收窄，L1 与 L2 自动执行，L3 仅提示。所有自动合并都记录在 manifest 并可从回收站还原。</p>
+        <p class="sub">内容相同的重复副本会自动合并（可从回收站还原）；同名但内容不一样的，由你决定保留哪个。</p>
       </div>
       <div class="head-actions">
         <button class="btn" @click="app.go('settings')"><i class="ph ph-gear-six"></i>去重策略</button>
@@ -81,35 +78,14 @@ onMounted(load);
 
     <div class="note mt-8" v-if="actionMsg"><i class="ph ph-info"></i><div>{{ actionMsg }}</div></div>
 
-    <div class="flow">
-      <div class="f-step">
-        <div class="f-box">
-          <div class="f-tag">L1 · 默认开启</div>
-          <div class="f-title">内容树哈希</div>
-          <div class="f-body">目录内文件排序、换行归一为 LF 后整体 SHA-256。零误报，直接合并。本次命中 <b>{{ plan?.dedup?.duplicates?.filter((d) => d.rule === "L1").length ?? "—" }}</b> 组。</div>
-        </div>
-      </div>
-      <div class="f-arrow"><i class="ph ph-arrow-right"></i></div>
-      <div class="f-step">
-        <div class="f-box">
-          <div class="f-tag">L2 · 默认开启</div>
-          <div class="f-title">名称归一</div>
-          <div class="f-body">小写化，短横线、下划线等价，剥离 taste-skill、gpt-tasteskill 这类后缀噪音。同名异容进冲突队列。</div>
-        </div>
-      </div>
-      <div class="f-arrow"><i class="ph ph-arrow-right"></i></div>
-      <div class="f-step">
-        <div class="f-box">
-          <div class="f-tag">L3 · {{ cfg?.l3?.enabled ? "已开启" : "默认关闭" }}</div>
-          <div class="f-title">语义相似度</div>
-          <div class="f-body">对名称加描述做本地相似度计算，≥ {{ cfg?.l3?.threshold ?? 0.85 }} 标记疑似同一技能，仅提示不动作。</div>
-        </div>
-      </div>
+    <div class="note" style="margin-top:16px" v-if="plan">
+      <i class="ph ph-funnel"></i>
+      <div>本轮扫描自动合并了 {{ plan?.dedup?.duplicates?.length ?? 0 }} 组重复副本；剩下 {{ conflicts.length }} 条疑似冲突需要你逐条确认。</div>
     </div>
 
     <div class="section">
-      <h2>冲突裁决队列（{{ conflicts.length }}）</h2>
-      <p class="desc">同名异容一律人工裁决（D4a），不自动选边。落选版本一律先进回收站。</p>
+      <h2>需要你决定的冲突（{{ conflicts.length }}）</h2>
+      <p class="desc">同名但内容不一样，选保留哪边。落选的会先进回收站，可还原。</p>
       <div class="panel" style="padding: 6px 18px;" v-if="conflicts.length">
         <div class="tool-row" v-for="c in conflicts" :key="c.id" :style="active?.id === c.id ? 'background:var(--panel-2)' : ''">
           <div class="tool-icon" :style="{ color: c.kind === 'norm' ? 'var(--info)' : 'var(--warn)' }"><i class="ph ph-git-merge"></i></div>
@@ -158,7 +134,7 @@ onMounted(load);
     </div>
 
     <div class="section" v-if="active && active.kind === 'norm'">
-      <h2>疑似同一技能（L2 归一提示）</h2>
+      <h2>疑似同一个技能</h2>
       <p class="desc">{{ active.detail }}</p>
       <div class="row" style="gap:10px">
         <button class="btn btn-primary" @click="resolve('same')"><i class="ph ph-git-merge"></i>确认同一，合并为一个</button>
@@ -166,8 +142,8 @@ onMounted(load);
       </div>
     </div>
 
-    <div class="section" v-if="plan?.dedup?.duplicates?.length">
-      <h2>已合并的重复组</h2>
+    <details class="fold" v-if="plan?.dedup?.duplicates?.length">
+      <summary>已自动合并的重复组（{{ plan.dedup.duplicates.length }}）</summary>
       <p class="desc">扫描中自动合并的组，来源工具均保留记录，可随时从回收站还原。</p>
       <div class="panel" style="padding: 6px 8px; overflow-x:auto">
         <table class="table">
@@ -184,20 +160,20 @@ onMounted(load);
           </tbody>
         </table>
       </div>
-    </div>
+    </details>
 
-    <div class="section" v-if="plan?.dedup?.hints?.length">
-      <h2>疑似同一技能（L3 提示）</h2>
-      <p class="desc">语义相似度达到提示阈值，但不自动合并。可在设置页开关 L3。</p>
+    <details class="fold" v-if="plan?.dedup?.hints?.length">
+      <summary>疑似同一技能提示（{{ plan.dedup.hints.length }}）</summary>
+      <p class="desc">名字和描述很相似，但内容不同，不自动合并。可在设置页开关此提示。</p>
       <div class="panel" style="padding: 6px 18px;">
         <div class="tool-row" v-for="(h, i) in plan.dedup.hints" :key="i">
           <div class="tool-icon" style="color:var(--info)"><i class="ph ph-sparkle"></i></div>
           <div class="t-main">
             <div class="t-name"><span class="mono">{{ h.a }}</span> 与 <span class="mono">{{ h.b }}</span></div>
-            <div class="t-path">语义相似度 {{ h.sim }}，请人工确认是否同一技能</div>
+            <div class="t-path">相似度 {{ h.sim }}，请人工确认是否同一技能</div>
           </div>
         </div>
       </div>
-    </div>
+    </details>
   </div>
 </template>

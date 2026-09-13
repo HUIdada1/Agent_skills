@@ -104,9 +104,9 @@ onMounted(load);
     <div class="note mt-8" v-if="actionMsg"><i class="ph ph-info"></i><div>{{ actionMsg }}</div></div>
 
     <div class="row-between" style="margin-bottom:16px">
-      <div class="input-group" style="max-width:420px; flex:1">
-        <i class="ph ph-magnifying-glass" style="align-self:center; margin-left:12px; color:var(--text-3)"></i>
-        <input class="input" style="border-radius:0 8px 8px 0; border-left:none" v-model="query" placeholder="搜索技能名称或描述，例如 gsap、设计、部署" />
+      <div class="search-box" style="max-width:420px; flex:1">
+        <i class="ph ph-magnifying-glass"></i>
+        <input class="input" v-model="query" placeholder="搜索技能名称或描述，例如 gsap、设计、部署" />
       </div>
       <div class="chips">
         <span class="chip" :class="{ on: chip === 'all' }" @click="chip = 'all'">全部<span class="n">{{ skills.length }}</span></span>

@@ -98,7 +98,7 @@ onMounted(load);
             <div class="row" style="margin-bottom:8px" v-else-if="t.enabled">
               <span class="badge warn"><i class="ph ph-warning"></i>候选路径均不存在</span>
             </div>
-            <div class="input-group">
+            <div style="margin-top:2px">
               <button class="btn btn-sm" @click="cfg.tools[t.id].paths.push('')"><i class="ph ph-plus"></i>添加候选路径</button>
             </div>
             <div class="help" v-if="t.id === 'antigravity'">Antigravity 各版本全局技能路径有漂移（旧版 .gemini\antigravity\skills，新版 .gemini\config\skills），多候选按顺序取第一个命中项。</div>
@@ -111,7 +111,7 @@ onMounted(load);
               <button class="btn" @click="browseToolPath('custom', i)" title="浏览"><i class="ph ph-folder-open"></i></button>
               <button class="btn" @click="cfg.customDirs.splice(i, 1)" title="移除"><i class="ph ph-x"></i></button>
             </div>
-            <div class="input-group">
+            <div style="margin-top:2px">
               <button class="btn btn-sm" @click="browseCustomAdd"><i class="ph ph-plus"></i>添加自定义目录</button>
             </div>
           </div>

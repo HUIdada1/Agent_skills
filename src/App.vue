@@ -21,13 +21,16 @@ onMounted(() => {
     <Sidebar />
     <main class="main">
       <div class="main-inner">
-        <DashboardView v-show="app.activePage === 'dashboard'" />
-        <LibraryView v-show="app.activePage === 'library'" />
-        <SkillDetailView v-show="app.activePage === 'skill-detail'" />
-        <SyncView v-show="app.activePage === 'sync'" />
-        <DedupView v-show="app.activePage === 'dedup'" />
-        <SettingsView v-show="app.activePage === 'settings'" />
-        <UpdaterView v-show="app.activePage === 'updater'" />
+        <!-- 按需挂载：页面首次进入才加载数据，KeepAlive 让切页不丢状态 -->
+        <KeepAlive>
+          <DashboardView v-if="app.activePage === 'dashboard'" />
+          <LibraryView v-else-if="app.activePage === 'library'" />
+          <SkillDetailView v-else-if="app.activePage === 'skill-detail'" />
+          <SyncView v-else-if="app.activePage === 'sync'" />
+          <DedupView v-else-if="app.activePage === 'dedup'" />
+          <SettingsView v-else-if="app.activePage === 'settings'" />
+          <UpdaterView v-else />
+        </KeepAlive>
       </div>
     </main>
   </div>

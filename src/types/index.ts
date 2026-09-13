@@ -122,6 +122,8 @@ export type SkillDetail = {
   dir: string;
   health: HealthIssue[];
   skillMd: string;
+  /** 未收纳技能：探测到的工具目录来源 */
+  sources?: SkillSource[];
 };
 
 export type UpdateStatus = {
