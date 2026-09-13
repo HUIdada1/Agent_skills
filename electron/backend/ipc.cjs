@@ -40,6 +40,16 @@ function register({ ipcMain }) {
   ipcMain.handle("get_app_version", () => app.getVersion());
   ipcMain.handle("get_is_portable", () => updater.isPortable());
 
+  // 渲染层切主题时同步 overlay 按钮底色与图标色（自绘标题栏跟随明暗主题）
+  ipcMain.handle("set_titlebar_theme", handle(({ theme }) => {
+    const win = BrowserWindow.getAllWindows()[0];
+    if (!win || typeof win.setTitleBarOverlay !== "function") return ok({});
+    win.setTitleBarOverlay(theme === "light"
+      ? { color: "#fbfcfd", symbolColor: "#46516a" }
+      : { color: "#0d1015", symbolColor: "#9aa3b5" });
+    return ok({});
+  }));
+
   // 软件更新
   ipcMain.handle("get_update_status", () => updater.getStatus());
   ipcMain.handle("check_update", () => updater.check(true));

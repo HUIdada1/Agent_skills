@@ -9,6 +9,7 @@ import SyncView from "./views/SyncView.vue";
 import DedupView from "./views/DedupView.vue";
 import SettingsView from "./views/SettingsView.vue";
 import UpdaterView from "./views/UpdaterView.vue";
+import logoUrl from "./assets/logo.png";
 
 const app = useAppStore();
 onMounted(() => {
@@ -17,6 +18,12 @@ onMounted(() => {
 </script>
 
 <template>
+  <!-- 自绘标题条：系统标题栏已隐藏，点击左上角不再弹系统菜单；
+       整条可拖拽移动窗口，双击最大化/还原，右上角三按钮由系统 overlay 提供 -->
+  <div class="titlebar">
+    <img class="tb-logo" :src="logoUrl" alt="Agent_skills" draggable="false" />
+    <span class="tb-name">Agent_skills</span>
+  </div>
   <div class="app-shell">
     <Sidebar />
     <main class="main">

@@ -33,6 +33,7 @@ async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> 
 
 export const getAppVersion = () => call<string>("get_app_version");
 export const getIsPortable = () => call<boolean>("get_is_portable");
+export const setTitlebarTheme = (theme: string) => call<void>("set_titlebar_theme", { theme });
 
 export const loadConfig = () => call<AppConfig>("load_config");
 export const saveConfig = (config: AppConfig) => call<{ ok: boolean; message: string }>("save_config", { config: JSON.parse(JSON.stringify(config)) });

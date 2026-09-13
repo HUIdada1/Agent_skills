@@ -5,6 +5,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 const ALLOWED_COMMANDS = new Set([
   "get_app_version",
   "get_is_portable",
+  "set_titlebar_theme",
   "get_update_status",
   "check_update",
   "download_update",

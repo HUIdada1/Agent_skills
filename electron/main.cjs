@@ -29,6 +29,14 @@ function createWindow() {
     title: "Agent_skills",
     icon: iconPath(),
     autoHideMenuBar: true,
+    // 隐藏系统标题栏（点击左上角图标弹系统菜单的行为随之消失），保留边缘缩放，
+    // 右上角三按钮由系统 overlay 绘制；左上角品牌区由渲染层 titlebar 自绘
+    titleBarStyle: "hidden",
+    titleBarOverlay: {
+      color: "#0d1015",
+      symbolColor: "#9aa3b5",
+      height: 40,
+    },
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,

@@ -1,6 +1,6 @@
 // 全局状态：当前页面 / 双主题 / 版本。没用 vue-router，切页就靠这个
 import { defineStore } from "pinia";
-import { getAppVersion } from "../api/ipc";
+import { getAppVersion, setTitlebarTheme } from "../api/ipc";
 
 export type PageName =
   | "dashboard"
@@ -41,6 +41,7 @@ export const useAppStore = defineStore("app", {
         localStorage.setItem(THEME_KEY, this.theme);
       } catch {}
       this.applyTheme();
+      setTitlebarTheme(this.theme);
     },
     go(page: PageName) {
       this.activePage = page;
@@ -51,6 +52,7 @@ export const useAppStore = defineStore("app", {
     },
     async load() {
       this.applyTheme();
+      setTitlebarTheme(this.theme); // 启动时把本地记住的主题同步给窗口 overlay
       try {
         this.version = await getAppVersion();
       } catch {

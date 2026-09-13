@@ -6,7 +6,6 @@ const app = useAppStore();
 
 <template>
   <aside class="sidebar">
-    <a class="brand"><i class="ph ph-cube-transparent"></i> Agent_skills</a>
     <nav>
       <div class="nav-group">导航</div>
       <a class="nav-item" :class="{ active: app.activePage === 'dashboard' }" @click="app.go('dashboard')"><i class="ph ph-squares-four"></i>仪表盘</a>

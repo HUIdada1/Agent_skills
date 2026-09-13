@@ -5,6 +5,7 @@
 .app-shell {
   display: flex;
   min-height: 100vh;
+  margin-top: 40px; /* 让出自绘标题条 */
 }
 
 /* Electron 窗口内导航项用鼠标指针 */
