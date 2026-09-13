@@ -1,7 +1,7 @@
 /* ============================================================
    Agent_skills 设计原型 · 共享样式（双主题）
    主题：黑暗（默认）/ 明亮，html[data-theme] 切换
-   强调色：翡翠绿（单一）；明亮模式加深为 #047857 保证对比度
+   强调色：翡翠绿（单一）；明亮模式用 emerald-600 #059669，鲜艳且对比度够用
    圆角：卡 14px / 控件 8px；数字一律 JetBrains Mono
    ============================================================ */
 
@@ -55,23 +55,23 @@ html[data-theme="light"] {
   --text: #1b2130;
   --text-2: #46516a;
   --text-3: #7e8aa0;
-  --accent: #047857;
-  --accent-deep: #065f46;
-  --accent-hover: #03543e;
-  --accent-dim: rgba(6, 95, 70, 0.09);
+  --accent: #059669;
+  --accent-deep: #047857;
+  --accent-hover: #047857;
+  --accent-dim: rgba(5, 150, 105, 0.10);
   --accent-ink: #ffffff;
-  --warn: #92610a;
-  --warn-dim: rgba(146, 97, 10, 0.10);
-  --danger: #b03d4f;
-  --danger-dim: rgba(176, 61, 79, 0.09);
-  --info: #2d63a8;
-  --info-dim: rgba(45, 99, 168, 0.09);
+  --warn: #d97706;
+  --warn-dim: rgba(217, 119, 6, 0.12);
+  --danger: #e11d48;
+  --danger-dim: rgba(225, 29, 72, 0.10);
+  --info: #2563eb;
+  --info-dim: rgba(37, 99, 235, 0.10);
   --code-bg: #f6f8fa;
   --code-text: #3a4356;
-  --code-k: #047857;
+  --code-k: #059669;
   --code-c: #8592a8;
   --code-s: #8250df;
-  --code-w: #9a6700;
+  --code-w: #b45309;
   --switch-knob: #ffffff;
   --shadow: 0 1px 2px rgba(23, 30, 45, 0.06), 0 1px 3px rgba(23, 30, 45, 0.04);
 }
@@ -87,9 +87,10 @@ body {
   font-size: 14px;
   line-height: 1.65;
   -webkit-font-smoothing: antialiased;
-  display: flex;
   min-height: 100vh;
 }
+/* body 不能用 flex：#app 作为 flex 项宽度会跟随内容 max-content 而非窗口，
+   窗口缩放时内容溢出被窗口边缘裁切。保持块级流，#app 自动占满视口宽。 */
 
 a { color: inherit; text-decoration: none; }
 
@@ -202,6 +203,8 @@ a { color: inherit; text-decoration: none; }
   flex: 1;
   min-width: 0;
   padding: 34px 42px 64px;
+  /* 内容区自行滚动：窗口再小内容也不会被窗口边缘裁掉，侧边栏常驻可见 */
+  overflow: auto;
 }
 
 .main-inner { max-width: 1160px; margin: 0 auto; }
@@ -415,12 +418,15 @@ a { color: inherit; text-decoration: none; }
 
 .skill-card .s-top { display: flex; align-items: center; gap: 8px; }
 .skill-card .s-icon {
-  width: 30px; height: 30px; flex: none;
+  width: 16px; height: 16px; flex: none;
   display: grid; place-items: center;
-  border-radius: 8px;
-  background: var(--accent-dim);
-  color: var(--accent);
-  font-size: 16px;
+}
+.skill-card .s-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: currentColor;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, currentColor 16%, transparent),
+    0 0 10px 1px color-mix(in srgb, currentColor 55%, transparent);
 }
 .skill-card .s-name { font-weight: 600; font-size: 14px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .skill-card .s-desc {
@@ -585,16 +591,8 @@ a { color: inherit; text-decoration: none; }
 /* ---------- chips 筛选 ---------- */
 
 .chips { display: flex; gap: 8px; flex-wrap: wrap; }
-.chip {
-  font-size: 12px;
-  color: var(--text-2);
-  border: 1px solid var(--border);
-  background: var(--panel);
-  border-radius: 999px;
-  padding: 5px 13px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
+.chip { display: inline-flex; align-items: center; font-size: 12px; color: var(--text-2); border: 1px solid var(--border); background: var(--panel); border-radius: 999px; padding: 5px 13px; cursor: pointer; transition: all 0.15s ease; }
+.chip-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; margin-right: 6px; flex: none; }
 .chip .n { font-family: var(--font-mono); font-size: 11px; color: var(--text-3); margin-left: 4px; }
 .chip:hover { border-color: var(--border-strong); color: var(--text); }
 .chip.on { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
@@ -620,12 +618,10 @@ a { color: inherit; text-decoration: none; }
 @media (max-width: 1080px) {
   .grid-4 { grid-template-columns: repeat(2, 1fr); }
   .skill-grid { grid-template-columns: repeat(2, 1fr); }
-  .steps { flex-wrap: wrap; gap: 14px; }
-  .steps .step { flex: 1 1 40%; }
 }
 
 @media (max-width: 880px) {
-  body { flex-direction: column; }
+  .app-shell { flex-direction: column; }
   .sidebar {
     width: 100%;
     height: auto;

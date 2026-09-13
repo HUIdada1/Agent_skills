@@ -108,7 +108,6 @@ export type AppConfig = {
     username: string;
     password: string;
     root: string;
-    preset: string;
     deviceId: string;
     deviceName: string;
   };
@@ -168,6 +167,7 @@ export type WebDavStatus = {
   stage: "idle" | "connect" | "pull" | "download" | "upload" | "push" | "done" | "cancelled" | "error";
   stageLabel: string;
   detail: string;
+  pct?: number;
   lastError: string;
 };
 
@@ -175,5 +175,5 @@ export type RemoteDevice = { id: string; name: string; appVersion: string; lastS
 
 export type WebDavLog = { at: string; text: string };
 
-export type WebDavEvent = { event: "webdav"; stage: string; detail: string; running: boolean };
+export type WebDavEvent = { event: "webdav"; stage: string; detail: string; pct?: number; running: boolean };
 

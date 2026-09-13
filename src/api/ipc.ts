@@ -30,6 +30,12 @@ async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> 
   if (isElectron()) {
     return (await window.agentSkills!.invoke(cmd, args)) as T;
   }
+  // 纯浏览器预览（npm run dev:web）：开发模式下用假数据，方便直接调 UI
+  if (import.meta.env.DEV) {
+    const { mockCall } = await import("./mock-preview");
+    const mocked = await mockCall(cmd);
+    if (mocked !== undefined) return mocked as T;
+  }
   return Promise.resolve(null as T);
 }
 

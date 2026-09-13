@@ -19,9 +19,9 @@ const THEME_KEY = "as-theme";
 function loadTheme(): Theme {
   try {
     const t = localStorage.getItem(THEME_KEY);
-    return t === "light" ? "light" : "dark"; // 默认深色
+    return t === "dark" ? "dark" : "light"; // 默认亮色
   } catch {
-    return "dark";
+    return "light";
   }
 }
 
@@ -35,6 +35,8 @@ export const useAppStore = defineStore("app", {
   actions: {
     applyTheme() {
       document.documentElement.dataset.theme = this.theme;
+      // Element Plus 的暗色方案认 html.dark，跟项目主题一起切
+      document.documentElement.classList.toggle("dark", this.theme === "dark");
     },
     toggleTheme() {
       this.theme = this.theme === "light" ? "dark" : "light";

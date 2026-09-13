@@ -4,7 +4,7 @@
 
 .app-shell {
   display: flex;
-  min-height: 100vh;
+  min-height: calc(100vh - 40px); /* 已让出 40px 标题条，不再恒定超出视口 */
   margin-top: 40px; /* 让出自绘标题条 */
 }
 
@@ -34,3 +34,225 @@
 .empty-state i { font-size: 40px; color: var(--text-3); }
 .empty-state .es-title { font-size: 14px; font-weight: 600; color: var(--text-2); }
 .empty-state .es-desc { font-size: 12px; max-width: 46ch; line-height: 1.7; }
+
+/* ---------- 工具类补全：页面里一直在用，样式此前从未定义，导致布局散架 ---------- */
+
+.row { display: flex; align-items: center; gap: 10px; }
+.row-between { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+
+.mt-8 { margin-top: 8px; }
+.mt-12 { margin-top: 12px; }
+.mt-16 { margin-top: 16px; }
+
+.muted { color: var(--text-3); }
+.small { font-size: 12px; }
+.strong { font-weight: 600; }
+
+/* 提示条（note warn / note ok / 默认 info 调） */
+.note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: var(--radius-ctl);
+  border: 1px solid var(--border);
+  background: var(--panel-2);
+  font-size: 13px;
+}
+.note > i { font-size: 16px; margin-top: 2px; color: var(--info); flex: none; }
+.note.warn { border-color: color-mix(in srgb, var(--warn) 30%, transparent); background: var(--warn-dim); }
+.note.warn > i { color: var(--warn); }
+.note.ok { border-color: color-mix(in srgb, var(--accent) 30%, transparent); background: var(--accent-dim); }
+.note.ok > i { color: var(--accent); }
+.note.err { border-color: color-mix(in srgb, var(--danger) 30%, transparent); background: var(--danger-dim); }
+.note.err > i { color: var(--danger); }
+.note a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+
+/* ============================================================
+   更新中心：版本对比 / 下载进度 / 更新流程步骤条 / 更新日志
+   ============================================================ */
+
+/* ---------- 版本对比行 ---------- */
+
+.cmp-row { display: flex; align-items: center; gap: 34px; }
+.cmp-ver { min-width: 150px; }
+.cmp-label { font-size: 12px; color: var(--text-3); display: flex; align-items: center; gap: 6px; }
+.cmp-num {
+  font-size: 30px; font-weight: 700; letter-spacing: -0.03em;
+  margin-top: 4px; line-height: 1.1; font-variant-numeric: tabular-nums;
+}
+.cmp-num.new { color: var(--accent); }
+.chip-portable {
+  font-family: var(--font-mono); font-size: 10px; color: var(--warn);
+  border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent);
+  background: var(--warn-dim); border-radius: 5px; padding: 0 6px;
+}
+.cmp-arrow {
+  width: 42px; height: 42px; flex: none;
+  display: grid; place-items: center;
+  border-radius: 50%; border: 1px dashed var(--border-strong);
+  background: var(--panel-2); color: var(--text-3);
+}
+.cmp-arrow i { font-size: 17px; }
+.cmp-arrow.hot { border-style: solid; border-color: var(--accent); background: var(--accent-dim); color: var(--accent); }
+.cmp-arrow.hot i { animation: cmp-nudge 1.6s ease-in-out infinite; }
+@keyframes cmp-nudge {
+  0%, 100% { transform: translateX(-2px); }
+  50% { transform: translateX(2px); }
+}
+.cmp-status {
+  margin-left: auto; max-width: 300px; text-align: right;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 5px;
+}
+.cmp-status .msg { font-size: 12px; color: var(--text-2); }
+
+/* ---------- 下载进度（downloading 时展开） ---------- */
+
+.pg-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+.pg-title { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 500; }
+.pg-title i { color: var(--accent); font-size: 16px; }
+.pg-pct {
+  font-size: 30px; font-weight: 700; letter-spacing: -0.03em; line-height: 1;
+  color: var(--accent); font-variant-numeric: tabular-nums;
+}
+.pg-pct small { font-size: 15px; font-weight: 500; color: var(--text-3); margin-left: 2px; }
+.pg-bar {
+  position: relative; margin-top: 14px; height: 10px;
+  border-radius: 6px; background: var(--panel-3); overflow: hidden;
+}
+.pg-fill {
+  position: absolute; inset: 0 auto 0 0; border-radius: 6px;
+  background: linear-gradient(90deg, var(--accent-deep), var(--accent));
+  box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 45%, transparent);
+  transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.pg-fill::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, 0.3) 50%, transparent 70%);
+  background-size: 220% 100%;
+  animation: pg-sheen 2s linear infinite;
+}
+@keyframes pg-sheen {
+  0% { background-position: 130% 0; }
+  100% { background-position: -130% 0; }
+}
+.pg-note { margin-top: 12px; font-size: 11.5px; color: var(--text-3); line-height: 1.8; }
+.pg-note code {
+  font-family: var(--font-mono); font-size: 10.5px; color: var(--text-2);
+  background: var(--panel-2); border: 1px solid var(--border-soft);
+  border-radius: 4px; padding: 0 5px;
+}
+
+/* ---------- 更新流程步骤条 ---------- */
+
+.steps-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.steps-head h2 { font-family: var(--font-display); font-size: 16.5px; font-weight: 600; letter-spacing: -0.01em; }
+.steps-head .desc { color: var(--text-3); font-size: 12.5px; }
+.steps { display: grid; grid-template-columns: repeat(4, 1fr); margin-top: 28px; }
+.step { position: relative; text-align: center; padding: 0 16px; }
+
+/* 节点间连接线：st-fallback 的兜底路径用虚线 */
+.step:not(:first-child)::before {
+  content: ""; position: absolute; top: 21px; left: -50%; width: 100%;
+  height: 2px; border-radius: 2px; background: var(--border-strong); z-index: 0;
+}
+.step.link-on::before { background: var(--accent); }
+.step.link-err::before { background: var(--danger); }
+.step.st-fallback::before {
+  background: repeating-linear-gradient(90deg, var(--border-strong) 0 6px, transparent 6px 12px);
+}
+.step.st-fallback.link-on::before {
+  background: repeating-linear-gradient(90deg, var(--warn) 0 6px, transparent 6px 12px);
+}
+
+.node {
+  width: 44px; height: 44px; margin: 0 auto; position: relative; z-index: 1;
+  display: grid; place-items: center; border-radius: 50%;
+  border: 1.5px solid var(--border-strong); background: var(--panel);
+  color: var(--text-3); font-family: var(--font-mono); font-size: 14px; font-weight: 500;
+  transition: all 0.25s ease;
+}
+.st-fallback .node { border-radius: 12px; }
+.node .ic { display: none; font-size: 17px; }
+
+.st.done .node {
+  background: var(--accent); border-color: var(--accent); color: var(--accent-ink);
+  box-shadow: 0 0 0 4px var(--accent-dim), 0 0 16px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.st.done .node .num { display: none; }
+.st.done .node .ic { display: grid; }
+.st.done .st-title { color: var(--text); }
+
+.st.cur .node {
+  border-color: var(--accent); color: var(--accent); background: var(--accent-dim);
+  animation: node-breathe 2.2s ease-in-out infinite;
+}
+@keyframes node-breathe {
+  0%, 100% { box-shadow: 0 0 0 3px var(--accent-dim); }
+  50% { box-shadow: 0 0 0 9px color-mix(in srgb, var(--accent) 6%, transparent); }
+}
+.st.cur .st-title { color: var(--text); }
+.st.cur .st-desc { color: var(--text-2); }
+
+.st.fail .node {
+  background: var(--danger); border-color: var(--danger); color: #fff;
+  box-shadow: 0 0 0 4px var(--danger-dim);
+}
+.st.fail .node .num { display: none; }
+.st.fail .node .ic { display: grid; }
+.st.fail .st-title { color: var(--danger); }
+
+.st.warn .node {
+  border-color: var(--warn); color: var(--warn); background: var(--warn-dim);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--warn) 10%, transparent);
+}
+.st.warn .node .num { display: none; }
+.st.warn .node .ic { display: grid; }
+.st.warn .st-title, .st.warn .st-desc { color: var(--warn); }
+
+.st-title {
+  margin-top: 12px; font-size: 13.5px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.st-desc { margin-top: 3px; font-size: 11.5px; color: var(--text-3); line-height: 1.6; }
+.st-sup {
+  font-size: 9.5px; font-weight: 600; letter-spacing: 0.04em; color: var(--warn);
+  border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent);
+  background: var(--warn-dim); border-radius: 4px; padding: 0 5px;
+}
+.wait-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  margin: 7px auto 0; width: fit-content;
+  font-size: 10.5px; font-weight: 600; color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  background: var(--accent-dim); border-radius: 999px; padding: 1px 10px;
+}
+.wait-chip::before {
+  content: ""; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent); animation: dot-blink 1.4s ease-in-out infinite;
+}
+@keyframes dot-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+/* ---------- 更新日志 ---------- */
+
+.cl-head { display: flex; align-items: center; gap: 10px; }
+.cl-v { font-size: 15px; font-weight: 700; }
+.cl-item { display: flex; gap: 8px; font-size: 12.5px; line-height: 1.9; color: var(--text-2); }
+.cl-item i { flex: none; margin-top: 6px; font-size: 13px; }
+.cl-item.bullet i { color: var(--accent); }
+.cl-item.group { font-size: 12px; font-weight: 600; color: var(--text); margin-top: 6px; }
+.cl-item.group i { color: var(--text-3); }
+
+/* ---------- 底部链接行 ---------- */
+
+.foot-links { margin-top: 34px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.foot-hint { margin-left: auto; font-size: 10.5px; color: var(--text-3); }
+
+@media (max-width: 1080px) {
+  .cmp-row { flex-wrap: wrap; }
+  .cmp-status { margin-left: 0; text-align: left; align-items: flex-start; }
+  .steps { grid-template-columns: repeat(2, 1fr); row-gap: 28px; }
+}

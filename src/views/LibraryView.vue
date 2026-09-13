@@ -9,7 +9,6 @@ const app = useAppStore();
 const skills = ref<SkillRow[]>([]);
 const loading = ref(true);
 const query = ref("");
-const chip = ref<"all" | "mounted" | "conflict" | "health" | "orphan">("all");
 const actionMsg = ref("");
 
 async function load() {
@@ -21,38 +20,44 @@ async function load() {
   }
 }
 
-const SKILL_ICONS = ["ph-paint-brush-broad", "ph-browsers", "ph-palette", "ph-scroll", "ph-magic-wand", "ph-diamond", "ph-image", "ph-device-mobile", "ph-code", "ph-framer-logo", "ph-brackets-angle", "ph-factory"];
+// 状态灯：一个技能可能同时命中多个状态，按异常优先取最需处理的一个；
+// 上方筛选 chips 与这里的五种状态一一对应，chip 颜色即圆点颜色
+const STATE_META = {
+  error: { color: "var(--danger)", label: "错误：体检未通过，需修复后才能正常使用" },
+  pending: { color: "var(--info)", label: "待收纳：新发现的技能，尚未入库" },
+  warn: { color: "var(--warn)", label: "警告：可用，有优化建议" },
+  active: { color: "var(--accent)", label: "已挂载：挂载在至少一个工具目录" },
+  stopped: { color: "var(--text-3)", label: "未挂载：在库中，当前没有启用的挂载" },
+};
 
-function iconFor(name: string): string {
-  let h = 0;
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
-  return SKILL_ICONS[h % SKILL_ICONS.length];
+type SkillState = keyof typeof STATE_META;
+
+function stateOf(s: SkillRow): SkillState {
+  if (s.health.some((h) => h.level === "bad")) return "error";
+  if (!s.inManifest) return "pending";
+  if (s.health.some((h) => h.level === "warn")) return "warn";
+  if (s.mounts.some((m) => m.enabled)) return "active";
+  return "stopped";
 }
+
+function dotOf(s: SkillRow) {
+  return STATE_META[stateOf(s)];
+}
+
+const chip = ref<"all" | SkillState>("all");
 
 const filtered = computed(() => {
   const q = query.value.trim().toLowerCase();
   return skills.value.filter((s) => {
     if (q && !(s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q))) return false;
-    const mounted = s.mounts.some((m) => m.enabled);
-    const hasIssue = s.health.some((h) => h.level === "bad" || h.level === "warn");
-    if (chip.value === "mounted") return mounted;
-    if (chip.value === "conflict") return !mounted && s.inManifest;
-    if (chip.value === "health") return hasIssue;
-    if (chip.value === "orphan") return !s.inManifest;
-    return true;
+    if (chip.value === "all") return true;
+    return stateOf(s) === chip.value;
   });
 });
 
 function chipCount(kind: typeof chip.value): number {
-  return skills.value.filter((s) => {
-    const mounted = s.mounts.some((m) => m.enabled);
-    const hasIssue = s.health.some((h) => h.level === "bad" || h.level === "warn");
-    if (kind === "mounted") return mounted;
-    if (kind === "conflict") return !mounted && s.inManifest;
-    if (kind === "health") return hasIssue;
-    if (kind === "orphan") return !s.inManifest;
-    return true;
-  }).length;
+  if (kind === "all") return skills.value.length;
+  return skills.value.filter((s) => stateOf(s) === kind).length;
 }
 
 const healthIssues = computed(() =>
@@ -103,17 +108,19 @@ onMounted(load);
 
     <div class="note mt-8" v-if="actionMsg"><i class="ph ph-info"></i><div>{{ actionMsg }}</div></div>
 
-    <div class="row-between" style="margin-bottom:16px">
-      <div class="search-box" style="max-width:420px; flex:1">
+    <!-- 搜索框与筛选 chips 弹性两行布局：宽屏同行两端，窄屏 chips 自动换行，永不贴死 -->
+    <div class="row-between" style="margin-bottom:16px; flex-wrap:wrap; row-gap:12px">
+      <div class="search-box" style="max-width:420px; flex:1 1 320px; min-width:280px">
         <i class="ph ph-magnifying-glass"></i>
         <input class="input" v-model="query" placeholder="搜索技能名称或描述，例如 gsap、设计、部署" />
       </div>
-      <div class="chips">
-        <span class="chip" :class="{ on: chip === 'all' }" @click="chip = 'all'">全部<span class="n">{{ skills.length }}</span></span>
-        <span class="chip" :class="{ on: chip === 'mounted' }" @click="chip = 'mounted'">已挂载<span class="n">{{ chipCount('mounted') }}</span></span>
-        <span class="chip" :class="{ on: chip === 'conflict' }" @click="chip = 'conflict'">未挂载<span class="n">{{ chipCount('conflict') }}</span></span>
-        <span class="chip" :class="{ on: chip === 'health' }" @click="chip = 'health'">健康警告<span class="n">{{ chipCount('health') }}</span></span>
-        <span class="chip" :class="{ on: chip === 'orphan' }" @click="chip = 'orphan'">待收纳<span class="n">{{ chipCount('orphan') }}</span></span>
+      <div class="chips" style="margin-left:auto">
+        <span class="chip" :class="{ on: chip === 'all' }" @click="chip = 'all'">全部<span class="n">{{ chipCount('all') }}</span></span>
+        <span class="chip" :class="{ on: chip === 'active' }" @click="chip = 'active'"><i class="chip-dot" style="color:var(--accent)"></i>已挂载<span class="n">{{ chipCount('active') }}</span></span>
+        <span class="chip" :class="{ on: chip === 'stopped' }" @click="chip = 'stopped'"><i class="chip-dot" style="color:var(--text-3)"></i>未挂载<span class="n">{{ chipCount('stopped') }}</span></span>
+        <span class="chip" :class="{ on: chip === 'error' }" @click="chip = 'error'"><i class="chip-dot" style="color:var(--danger)"></i>错误<span class="n">{{ chipCount('error') }}</span></span>
+        <span class="chip" :class="{ on: chip === 'warn' }" @click="chip = 'warn'"><i class="chip-dot" style="color:var(--warn)"></i>警告<span class="n">{{ chipCount('warn') }}</span></span>
+        <span class="chip" :class="{ on: chip === 'pending' }" @click="chip = 'pending'"><i class="chip-dot" style="color:var(--info)"></i>待收纳<span class="n">{{ chipCount('pending') }}</span></span>
       </div>
     </div>
 
@@ -122,7 +129,7 @@ onMounted(load);
     <div class="skill-grid" v-else-if="filtered.length">
       <div class="skill-card" v-for="s in filtered" :key="s.name" @click="app.openSkillDetail(s.name)">
         <div class="s-top">
-          <div class="s-icon"><i class="ph" :class="iconFor(s.name)"></i></div>
+          <div class="s-icon" :title="dotOf(s).label"><span class="s-dot" :style="{ color: dotOf(s).color }"></span></div>
           <span class="s-name">{{ s.name }}</span>
           <span class="badge ok" v-if="s.mounts.some((m) => m.enabled)"><i class="ph ph-check-circle"></i>已挂载</span>
           <span class="badge mute" v-else-if="s.inManifest"><i class="ph ph-minus-circle"></i>未挂载</span>

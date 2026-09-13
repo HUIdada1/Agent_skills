@@ -1,0 +1,185 @@
+/* ============================================================
+   Element Plus 融入项目主题
+   主色/语义色对齐 tokens.css 翡翠绿系，中性色（底/边/字）双主题对齐。
+   深色写在 html.dark（须在本文件于 dark/css-vars.css 之后引入时生效），
+   浅色写在 html[data-theme="light"]。
+   ============================================================ */
+
+html.dark {
+  /* 主色：亮翡翠 */
+  --el-color-primary: #34d399;
+  --el-color-primary-dark-2: #10b981;
+  --el-color-primary-light-3: color-mix(in srgb, #34d399 70%, var(--panel-2));
+  --el-color-primary-light-5: color-mix(in srgb, #34d399 50%, var(--panel-2));
+  --el-color-primary-light-7: color-mix(in srgb, #34d399 30%, var(--panel-2));
+  --el-color-primary-light-8: color-mix(in srgb, #34d399 20%, var(--panel-2));
+  --el-color-primary-light-9: color-mix(in srgb, #34d399 12%, var(--panel-2));
+
+  /* 语义色：直接取项目 token，各档用 color-mix 往面板色靠 */
+  --el-color-success: #34d399;
+  --el-color-success-dark-2: #10b981;
+  --el-color-success-light-3: color-mix(in srgb, #34d399 70%, var(--panel-2));
+  --el-color-success-light-5: color-mix(in srgb, #34d399 50%, var(--panel-2));
+  --el-color-success-light-7: color-mix(in srgb, #34d399 30%, var(--panel-2));
+  --el-color-success-light-8: color-mix(in srgb, #34d399 20%, var(--panel-2));
+  --el-color-success-light-9: color-mix(in srgb, #34d399 12%, var(--panel-2));
+
+  --el-color-warning: #e8b45a;
+  --el-color-warning-dark-2: #c9983f;
+  --el-color-warning-light-3: color-mix(in srgb, #e8b45a 70%, var(--panel-2));
+  --el-color-warning-light-5: color-mix(in srgb, #e8b45a 50%, var(--panel-2));
+  --el-color-warning-light-7: color-mix(in srgb, #e8b45a 30%, var(--panel-2));
+  --el-color-warning-light-8: color-mix(in srgb, #e8b45a 20%, var(--panel-2));
+  --el-color-warning-light-9: color-mix(in srgb, #e8b45a 12%, var(--panel-2));
+
+  --el-color-danger: #ef7b8a;
+  --el-color-danger-dark-2: #d96070;
+  --el-color-danger-light-3: color-mix(in srgb, #ef7b8a 70%, var(--panel-2));
+  --el-color-danger-light-5: color-mix(in srgb, #ef7b8a 50%, var(--panel-2));
+  --el-color-danger-light-7: color-mix(in srgb, #ef7b8a 30%, var(--panel-2));
+  --el-color-danger-light-8: color-mix(in srgb, #ef7b8a 20%, var(--panel-2));
+  --el-color-danger-light-9: color-mix(in srgb, #ef7b8a 12%, var(--panel-2));
+
+  --el-color-error: #ef7b8a;
+  --el-color-error-dark-2: #d96070;
+  --el-color-error-light-3: color-mix(in srgb, #ef7b8a 70%, var(--panel-2));
+  --el-color-error-light-5: color-mix(in srgb, #ef7b8a 50%, var(--panel-2));
+  --el-color-error-light-7: color-mix(in srgb, #ef7b8a 30%, var(--panel-2));
+  --el-color-error-light-8: color-mix(in srgb, #ef7b8a 20%, var(--panel-2));
+  --el-color-error-light-9: color-mix(in srgb, #ef7b8a 12%, var(--panel-2));
+
+  --el-color-info: #7fb0e8;
+  --el-color-info-dark-2: #5f95d6;
+  --el-color-info-light-3: color-mix(in srgb, #7fb0e8 70%, var(--panel-2));
+  --el-color-info-light-5: color-mix(in srgb, #7fb0e8 50%, var(--panel-2));
+  --el-color-info-light-7: color-mix(in srgb, #7fb0e8 30%, var(--panel-2));
+  --el-color-info-light-8: color-mix(in srgb, #7fb0e8 20%, var(--panel-2));
+  --el-color-info-light-9: color-mix(in srgb, #7fb0e8 12%, var(--panel-2));
+
+  /* 中性色：面板/边框/文字对齐项目 token */
+  --el-bg-color: var(--panel);
+  --el-bg-color-page: var(--bg);
+  --el-bg-color-overlay: var(--panel-2);
+  --el-text-color-primary: var(--text);
+  --el-text-color-regular: var(--text-2);
+  --el-text-color-secondary: var(--text-3);
+  --el-text-color-placeholder: var(--text-3);
+  --el-text-color-disabled: var(--text-3);
+  --el-border-color: var(--border-strong);
+  --el-border-color-light: var(--border);
+  --el-border-color-lighter: var(--border-soft);
+  --el-border-color-extra-light: var(--border-soft);
+  --el-fill-color: var(--panel-2);
+  --el-fill-color-light: var(--panel-2);
+  --el-fill-color-lighter: var(--panel-2);
+  --el-fill-color-extra-light: var(--panel-3);
+  --el-fill-color-dark: var(--panel-3);
+  --el-fill-color-darker: var(--panel-3);
+  --el-fill-color-blank: var(--panel);
+  --el-mask-color: rgba(5, 7, 10, 0.6);
+
+  --el-border-radius-base: 8px;
+  --el-border-radius-small: 6px;
+  --el-font-size-base: 13px;
+  --el-box-shadow: 0 8px 28px rgba(0, 0, 0, 0.4);
+  --el-box-shadow-light: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+html[data-theme="light"] {
+  --el-color-primary: #047857;
+  --el-color-primary-dark-2: #03543e;
+  --el-color-primary-light-3: color-mix(in srgb, #047857 70%, #ffffff);
+  --el-color-primary-light-5: color-mix(in srgb, #047857 50%, #ffffff);
+  --el-color-primary-light-7: color-mix(in srgb, #047857 30%, #ffffff);
+  --el-color-primary-light-8: color-mix(in srgb, #047857 20%, #ffffff);
+  --el-color-primary-light-9: color-mix(in srgb, #047857 12%, #ffffff);
+
+  --el-color-success: #047857;
+  --el-color-success-dark-2: #03543e;
+  --el-color-success-light-3: color-mix(in srgb, #047857 70%, #ffffff);
+  --el-color-success-light-5: color-mix(in srgb, #047857 50%, #ffffff);
+  --el-color-success-light-7: color-mix(in srgb, #047857 30%, #ffffff);
+  --el-color-success-light-8: color-mix(in srgb, #047857 20%, #ffffff);
+  --el-color-success-light-9: color-mix(in srgb, #047857 12%, #ffffff);
+
+  --el-color-warning: #92610a;
+  --el-color-warning-dark-2: #7a5008;
+  --el-color-warning-light-3: color-mix(in srgb, #92610a 70%, #ffffff);
+  --el-color-warning-light-5: color-mix(in srgb, #92610a 50%, #ffffff);
+  --el-color-warning-light-7: color-mix(in srgb, #92610a 30%, #ffffff);
+  --el-color-warning-light-8: color-mix(in srgb, #92610a 20%, #ffffff);
+  --el-color-warning-light-9: color-mix(in srgb, #92610a 12%, #ffffff);
+
+  --el-color-danger: #b03d4f;
+  --el-color-danger-dark-2: #93303f;
+  --el-color-danger-light-3: color-mix(in srgb, #b03d4f 70%, #ffffff);
+  --el-color-danger-light-5: color-mix(in srgb, #b03d4f 50%, #ffffff);
+  --el-color-danger-light-7: color-mix(in srgb, #b03d4f 30%, #ffffff);
+  --el-color-danger-light-8: color-mix(in srgb, #b03d4f 20%, #ffffff);
+  --el-color-danger-light-9: color-mix(in srgb, #b03d4f 12%, #ffffff);
+
+  --el-color-error: #b03d4f;
+  --el-color-error-dark-2: #93303f;
+  --el-color-error-light-3: color-mix(in srgb, #b03d4f 70%, #ffffff);
+  --el-color-error-light-5: color-mix(in srgb, #b03d4f 50%, #ffffff);
+  --el-color-error-light-7: color-mix(in srgb, #b03d4f 30%, #ffffff);
+  --el-color-error-light-8: color-mix(in srgb, #b03d4f 20%, #ffffff);
+  --el-color-error-light-9: color-mix(in srgb, #b03d4f 12%, #ffffff);
+
+  --el-color-info: #2d63a8;
+  --el-color-info-dark-2: #24528d;
+  --el-color-info-light-3: color-mix(in srgb, #2d63a8 70%, #ffffff);
+  --el-color-info-light-5: color-mix(in srgb, #2d63a8 50%, #ffffff);
+  --el-color-info-light-7: color-mix(in srgb, #2d63a8 30%, #ffffff);
+  --el-color-info-light-8: color-mix(in srgb, #2d63a8 20%, #ffffff);
+  --el-color-info-light-9: color-mix(in srgb, #2d63a8 12%, #ffffff);
+
+  --el-bg-color: #fcfdfe;
+  --el-bg-color-page: #f3f4f7;
+  --el-bg-color-overlay: #ffffff;
+  --el-text-color-primary: #1b2130;
+  --el-text-color-regular: #46516a;
+  --el-text-color-secondary: #7e8aa0;
+  --el-text-color-placeholder: #7e8aa0;
+  --el-border-color: #c3cbd8;
+  --el-border-color-light: #d8dde6;
+  --el-border-color-lighter: #e3e7ee;
+  --el-border-color-extra-light: #e3e7ee;
+  --el-fill-color: #f1f3f7;
+  --el-fill-color-light: #f1f3f7;
+  --el-fill-color-lighter: #f6f8fa;
+  --el-fill-color-blank: #fcfdfe;
+  --el-mask-color: rgba(23, 30, 45, 0.4);
+  --el-box-shadow: 0 8px 28px rgba(23, 30, 45, 0.12);
+  --el-box-shadow-light: 0 4px 16px rgba(23, 30, 45, 0.08);
+}
+
+/* ---------- 细节：与项目密度、图标体系一致 ---------- */
+
+.el-button { font-weight: 500; }
+.el-button i { font-size: 15px; }
+.el-button--small i { font-size: 13px; }
+
+/* 输入类控件等高、贴项目密度 */
+.el-input__wrapper { border-radius: var(--radius-ctl); }
+.el-input--large { --el-input-height: 38px; }
+.el-textarea__inner { border-radius: var(--radius-ctl); }
+
+/* select 下拉项选中色用主题绿 */
+.el-select-dropdown__item.is-selected { color: var(--el-color-primary); font-weight: 500; }
+
+/* switch 开时不再描边（Element 默认即可），关时滑块颜色贴项目 */
+.el-switch__core .el-switch__action { background: var(--switch-knob); }
+.el-switch.is-checked .el-switch__action { background: var(--accent-ink); }
+
+/* 步骤条紧凑化：贴合面板内使用；当前步骤用主色突出 */
+.el-steps .el-step__title { font-size: 12.5px; font-weight: 500; line-height: 1.4; }
+.el-steps .el-step__description { font-size: 11.5px; }
+.el-steps .el-step__head.is-process { color: var(--el-color-primary); border-color: var(--el-color-primary); }
+.el-steps .el-step__title.is-process { color: var(--el-color-primary); font-weight: 600; }
+
+/* progress 圆角条 */
+.el-progress-bar__outer { background-color: var(--panel-3); }
+
+/* 头部操作区混排 tag 与按钮时垂直居中 */
+.head-actions { align-items: center; }

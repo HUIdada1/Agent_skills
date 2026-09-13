@@ -69,7 +69,6 @@ const DEFAULT_CONFIG = {
     username: "",
     password: "",
     root: "/agent-skills",
-    preset: "custom", // jianguoyun | nextcloud | synology | fnos | custom
     deviceId: "",     // 首次使用时惰性生成
     deviceName: "",   // 默认取计算机名
   },

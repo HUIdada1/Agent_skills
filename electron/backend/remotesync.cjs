@@ -24,7 +24,10 @@ const STAGE_LABEL = {
   error: "同步失败",
 };
 
-let state = { running: false, stage: "idle", detail: "", lastError: "", lastSyncAt: "" };
+// 进度百分比各阶段基准（循环内按完成数插值）；阶段没任务时自动落到基准
+const STAGE_BASE = { connect: 2, pull: 8, download: 26, upload: 58, push: 90, done: 100 };
+
+let state = { running: false, stage: "idle", pct: 0, detail: "", lastError: "", lastSyncAt: "" };
 let logs = []; // 最近日志（环形），页面打开时补历史
 let cancelSignal = null;
 let onFinish = null; // 同步结束回调（main.cjs 注入：托盘菜单刷新 + 系统通知）
@@ -47,11 +50,13 @@ function broadcast(payload) {
   } catch { /* 自测环境无 electron */ }
 }
 
-function setStage(stage, detail) {
+function setStage(stage, detail, pct) {
   state.stage = stage;
   state.detail = detail || "";
+  if (pct != null) state.pct = Math.min(100, Math.max(0, Math.round(pct)));
+  else if (STAGE_BASE[stage] != null) state.pct = STAGE_BASE[stage];
   log(`[${STAGE_LABEL[stage] || stage}] ${detail || ""}`);
-  broadcast({ stage, detail: state.detail, running: state.running });
+  broadcast({ stage, detail: state.detail, pct: state.pct, running: state.running });
 }
 
 function isRunning() {
@@ -161,10 +166,10 @@ async function run(cfg) {
   if (state.running) throw new Error("同步已在进行中");
   if (!configured(cfg)) throw new Error("WebDAV 未配置完整（服务器地址 / 账号 / 密码）");
 
-  state = { running: true, stage: "connect", detail: "", lastError: "", lastSyncAt: state.lastSyncAt };
+  state = { running: true, stage: "connect", pct: STAGE_BASE.connect, detail: "", lastError: "", lastSyncAt: state.lastSyncAt };
   cancelSignal = new AbortController();
   webdav.setActiveSignal(cancelSignal.signal);
-  broadcast({ stage: "connect", running: true });
+  broadcast({ stage: "connect", pct: state.pct, running: true });
 
   const deviceId = cfg.webdav.deviceId;
   const deviceName = cfg.webdav.deviceName || "这台电脑";
@@ -200,13 +205,15 @@ async function run(cfg) {
 
     const localManifest = hub.loadManifest();
     const remoteDirs = (await webdav.list(remoteUrl(cfg, "skills"), cfg.webdav)).filter((e) => e.isDir).map((e) => e.name);
-    setStage("pull", `远端 ${Object.keys(remoteManifest.skills).length} 个技能 / ${remoteDirs.length} 个目录，本机 ${Object.keys(localManifest.skills).length} 个`);
+    setStage("pull", `远端 ${Object.keys(remoteManifest.skills).length} 个技能 / ${remoteDirs.length} 个目录，本机 ${Object.keys(localManifest.skills).length} 个`, 16);
 
     const plan = computePlan(localManifest, remoteManifest, remoteDirs, rstate);
     log(`计划：下载 ${plan.downloads.length} · 上传 ${plan.uploads.length} · 冲突 ${plan.conflicts.length} · 删远端 ${plan.deleteRemote.length} · 删本机 ${plan.deleteLocal.length}`);
 
     // ---- 冲突检出：远端版下载到暂存供裁决 ----
-    for (const c of plan.conflicts) {
+    for (let ci = 0; ci < plan.conflicts.length; ci++) {
+      const c = plan.conflicts[ci];
+      setStage("pull", `检出冲突 ${c.name}（远端版暂存中）`, 18 + ((ci + 1) / plan.conflicts.length) * 8);
       const staging = stagingDir(c.name);
       fs.rmSync(staging, { recursive: true, force: true });
       try {
@@ -231,9 +238,10 @@ async function run(cfg) {
 
     // ---- 下载导入 ----
     if (plan.downloads.length) setStage("download", `待下载 ${plan.downloads.length} 个技能`);
-    for (const d of plan.downloads) {
+    for (let di = 0; di < plan.downloads.length; di++) {
+      const d = plan.downloads[di];
       checkAborted();
-      setStage("download", `下载 ${d.name}（${d.reason}）`);
+      setStage("download", `下载 ${d.name}（${d.reason}）`, 26 + ((di + 1) / plan.downloads.length) * 30);
       const tmp = path.join(config.hubDir(), ".remote-tmp", d.name);
       fs.rmSync(tmp, { recursive: true, force: true });
       try {
@@ -251,9 +259,10 @@ async function run(cfg) {
 
     // ---- 上传推送 ----
     if (plan.uploads.length) setStage("upload", `待上传 ${plan.uploads.length} 个技能`);
-    for (const u of plan.uploads) {
+    for (let ui = 0; ui < plan.uploads.length; ui++) {
+      const u = plan.uploads[ui];
       checkAborted();
-      setStage("upload", `上传 ${u.name}（${u.reason}）`);
+      setStage("upload", `上传 ${u.name}（${u.reason}）`, 58 + ((ui + 1) / plan.uploads.length) * 24);
       try {
         const localDir = path.join(hub.skillsDir(), u.name);
         const n = await uploadSkillDir(cfg, localDir, `skills/${u.name}`);
@@ -275,9 +284,10 @@ async function run(cfg) {
     }
 
     // ---- 删远端（本机墓碑传播）----
-    for (const name of plan.deleteRemote) {
+    for (let ri = 0; ri < plan.deleteRemote.length; ri++) {
+      const name = plan.deleteRemote[ri];
       checkAborted();
-      setStage("upload", `删除远端 ${name}（本机已删除）`);
+      setStage("upload", `删除远端 ${name}（本机已删除）`, 82 + ((ri + 1) / plan.deleteRemote.length) * 4);
       try {
         await webdav.remove(remoteUrl(cfg, "skills", name), cfg.webdav);
         result.deletions.push({ name, side: "远端" });
@@ -287,10 +297,11 @@ async function run(cfg) {
       }
     }
 
-    // ---- 删本机（远端墓碑生效）----
-    for (const name of plan.deleteLocal) {
+    // ---- 删本机（远端墓碑生效）：归入推送段，让阶段进度保持单调不回跳 ----
+    for (let li = 0; li < plan.deleteLocal.length; li++) {
+      const name = plan.deleteLocal[li];
       checkAborted();
-      setStage("download", `本机 ${name} 移入回收站（远端已删除）`);
+      setStage("push", `本机 ${name} 移入回收站（远端已删除）`, 86 + ((li + 1) / plan.deleteLocal.length) * 4);
       try {
         const dir = path.join(hub.skillsDir(), name);
         if (fs.existsSync(dir)) hub.toTrash(dir, name);
