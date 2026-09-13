@@ -27,6 +27,7 @@ let installTriggered = false; // quitAndInstall 内部会再触发一次 quit，
 let currentCheckIsManual = false; // 手动检查时用户正看着页面，不弹系统通知
 let timer = null;
 let showWindow = null;
+let onTrayRefresh = null; // 状态一变就刷新托盘菜单（更新提示条目随之出现/消失）
 
 function isPortable() {
   return !!process.env.PORTABLE_EXECUTABLE_DIR;
@@ -74,6 +75,9 @@ function broadcast(payload) {
 function setState(state, extra = {}) {
   status = { ...status, ...extra, status: state };
   broadcast({ event: "state", ...status });
+  if (onTrayRefresh) {
+    try { onTrayRefresh(); } catch { /* 托盘刷新失败不影响更新流程 */ }
+  }
 }
 
 // 每次读盘，设置页改完立刻生效
@@ -299,6 +303,7 @@ function bindUpdaterEvents() {
 
 function init(opts) {
   showWindow = (opts && opts.onShowWindow) || null;
+  onTrayRefresh = (opts && opts.onTrayRefresh) || null;
   status = idleStatus();
   if (autoUpdater) {
     autoUpdater.autoDownload = false; // 下载让用户自己点

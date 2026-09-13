@@ -22,9 +22,11 @@ function reportsDir() {
 
 function loadManifest() {
   try {
-    return JSON.parse(fs.readFileSync(manifestFile(), "utf-8"));
+    const m = JSON.parse(fs.readFileSync(manifestFile(), "utf-8"));
+    if (!m.deleted || typeof m.deleted !== "object") m.deleted = {}; // 删除墓碑：防技能跨设备"复活"
+    return m;
   } catch {
-    return { version: 1, skills: {}, updatedAt: null };
+    return { version: 1, skills: {}, deleted: {}, updatedAt: null };
   }
 }
 
@@ -124,6 +126,14 @@ function restoreFromTrash(trashName, destParent) {
   const dest = path.join(base, original);
   if (fs.existsSync(dest)) return { ok: false, message: `目标已存在：${dest}` };
   fs.renameSync(src, dest);
+  // 还原即撤销删除，墓碑一并清掉，不然跨设备同步时会被当删除传播
+  if (original && base === skillsDir()) {
+    const m = loadManifest();
+    if (m.deleted[original]) {
+      delete m.deleted[original];
+      saveManifest(m);
+    }
+  }
   return { ok: true, dest };
 }
 
@@ -159,13 +169,19 @@ function dirSize(p) {
   return n;
 }
 
-// 删中央技能：真身进回收站，manifest 移除（挂载不在这处理）
+// 删中央技能：真身进回收站，manifest 移除并记墓碑（跨设备同步时据此删除远端、防止其他设备把技能"复活"回来）
 function removeSkill(name) {
   const dir = path.join(skillsDir(), name);
   if (!fs.existsSync(dir)) return { ok: false, message: "技能不存在" };
-  const trashPath = toTrash(dir, name);
   const m = loadManifest();
+  const entry = m.skills[name];
+  const trashPath = toTrash(dir, name);
   delete m.skills[name];
+  m.deleted[name] = {
+    treeHash: (entry && entry.treeHash) || "",
+    deletedAt: new Date().toISOString(),
+    by: config.loadConfig().webdav.deviceId || "",
+  };
   saveManifest(m);
   return { ok: true, trashPath };
 }

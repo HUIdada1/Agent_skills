@@ -188,4 +188,4 @@ function scanAll(cfg, adapter) {
   return result;
 }
 
-module.exports = { parseSkillMd, treeHash, healthCheck, scanDir, scanAll, isBinary };
+module.exports = { parseSkillMd, treeHash, healthCheck, scanDir, scanAll, isBinary, collectFiles: collect };

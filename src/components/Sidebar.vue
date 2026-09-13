@@ -14,6 +14,7 @@ const app = useAppStore();
       <a class="nav-item" :class="{ active: app.activePage === 'sync' }" @click="app.go('sync')"><i class="ph ph-arrows-left-right"></i>同步中心</a>
       <a class="nav-item" :class="{ active: app.activePage === 'dedup' }" @click="app.go('dedup')"><i class="ph ph-git-merge"></i>去重与冲突</a>
       <div class="nav-group">系统</div>
+      <a class="nav-item" :class="{ active: app.activePage === 'webdav' }" @click="app.go('webdav')"><i class="ph ph-cloud"></i>WebDAV 同步</a>
       <a class="nav-item" :class="{ active: app.activePage === 'settings' }" @click="app.go('settings')"><i class="ph ph-gear-six"></i>设置</a>
       <a class="nav-item" :class="{ active: app.activePage === 'updater' }" @click="app.go('updater')"><i class="ph ph-arrows-clockwise"></i>更新中心</a>
     </nav>

@@ -4,6 +4,36 @@
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
+const crypto = require("node:crypto");
+
+// 便携版是临时解压目录，开机自启注册的路径退出即失效（自启开关要在设置页禁用）
+function isPortable() {
+  return !!process.env.PORTABLE_EXECUTABLE_DIR;
+}
+
+// WebDAV 密码用系统级密钥加密落盘（safeStorage 不可用就降级明文）。
+// 渲染层永远只拿掩码，真值留在主进程
+let safeStorage = null;
+try { safeStorage = require("electron").safeStorage; } catch { /* 自测环境无 electron */ }
+const ENC_PREFIX = "enc:v1:";
+
+function encryptSecret(plain) {
+  const s = String(plain || "");
+  if (!s || s.startsWith(ENC_PREFIX)) return s; // 空值或已是密文不重复加密
+  if (!safeStorage || !safeStorage.isEncryptionAvailable()) return s;
+  return ENC_PREFIX + safeStorage.encryptString(s).toString("base64");
+}
+
+function decryptSecret(stored) {
+  const s = String(stored || "");
+  if (!s.startsWith(ENC_PREFIX)) return s; // 明文（降级环境存的）直接用
+  if (!safeStorage || !safeStorage.isEncryptionAvailable()) return "";
+  try {
+    return safeStorage.decryptString(Buffer.from(s.slice(ENC_PREFIX.length), "base64"));
+  } catch {
+    return ""; // 密文来自其他机器解不开，让用户重填
+  }
+}
 
 function hubDir() {
   const custom = process.env.AGENT_SKILLS_HOME;
@@ -33,6 +63,25 @@ const DEFAULT_CONFIG = {
   l3: { enabled: false, threshold: 0.85 },
   trashDays: 7,
   update: { channel: "stable", autoCheck: true, notifiedVersion: "" },
+  // WebDAV 跨设备同步（password 落盘是密文，内存里是明文）
+  webdav: {
+    endpoint: "",
+    username: "",
+    password: "",
+    root: "/agent-skills",
+    preset: "custom", // jianguoyun | nextcloud | synology | fnos | custom
+    deviceId: "",     // 首次使用时惰性生成
+    deviceName: "",   // 默认取计算机名
+  },
+  // 后台与调度
+  schedule: {
+    minimizeToTray: true, // 关窗缩到托盘
+    autoStart: false,     // 开机自启（便携版无效）
+    hourly: false,        // 每小时自动同步
+    daily: false,         // 每天定时同步
+    dailyTime: "09:00",
+    notifyOnSuccess: false, // 同步成功也通知（失败总通知）
+  },
 };
 
 function configFile() {
@@ -49,14 +98,24 @@ function loadConfig() {
     if (fs.existsSync(p)) {
       try { fs.copyFileSync(p, p + ".bad"); } catch {}
     }
-    return JSON.parse(JSON.stringify(DEFAULT_CONFIG));
+    disk = {};
   }
-  return mergeDeep(JSON.parse(JSON.stringify(DEFAULT_CONFIG)), disk);
+  const c = mergeDeep(JSON.parse(JSON.stringify(DEFAULT_CONFIG)), disk);
+  c.webdav.password = decryptSecret(c.webdav.password);
+  // deviceId / 本机名惰性补全并写回，保证多次调用稳定
+  if (!c.webdav.deviceId || !c.webdav.deviceName) {
+    if (!c.webdav.deviceId) c.webdav.deviceId = crypto.randomUUID();
+    if (!c.webdav.deviceName) c.webdav.deviceName = os.hostname();
+    try { saveConfig(c); } catch { /* 写不回去下次再补 */ }
+  }
+  return c;
 }
 
 function saveConfig(cfg) {
   ensureHub();
-  fs.writeFileSync(configFile(), JSON.stringify(cfg, null, 2), "utf-8");
+  const disk = JSON.parse(JSON.stringify(cfg));
+  disk.webdav.password = encryptSecret(disk.webdav.password);
+  fs.writeFileSync(configFile(), JSON.stringify(disk, null, 2), "utf-8");
   return { ok: true, message: "已保存" };
 }
 
@@ -91,4 +150,14 @@ function setUpdateNotified(version) {
   }
 }
 
-module.exports = { hubDir, ensureHub, loadConfig, saveConfig, getUpdateNotified, setUpdateNotified, DEFAULT_CONFIG };
+// 开机自启即时生效；便携版注册的是临时解压路径，开发模式不必注册
+function applyAutoStart(cfg) {
+  if (isPortable() || !require("electron").app || process.env.VITE_DEV_SERVER_URL) return;
+  try {
+    const app = require("electron").app;
+    if (!app.isPackaged) return;
+    app.setLoginItemSettings({ openAtLogin: !!(cfg.schedule && cfg.schedule.autoStart) });
+  } catch { /* 注册失败不拦保存 */ }
+}
+
+module.exports = { hubDir, ensureHub, loadConfig, saveConfig, getUpdateNotified, setUpdateNotified, DEFAULT_CONFIG, isPortable, encryptSecret, decryptSecret, applyAutoStart };

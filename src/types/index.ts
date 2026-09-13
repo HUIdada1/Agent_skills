@@ -76,7 +76,7 @@ export type SyncResult = {
 
 export type ConflictItem = {
   id: string;
-  kind: "content" | "diff-link" | "norm";
+  kind: "content" | "diff-link" | "norm" | "remote";
   skill?: string;
   toolId?: string;
   dir?: string;
@@ -84,6 +84,8 @@ export type ConflictItem = {
   detail: string;
   a?: string;
   b?: string;
+  localHash?: string;
+  remoteHash?: string;
   at: string;
   resolved?: { at: string; choice: string };
 };
@@ -101,6 +103,23 @@ export type AppConfig = {
   l3: { enabled: boolean; threshold: number };
   trashDays: number;
   update: { channel: string; autoCheck: boolean; notifiedVersion: string };
+  webdav: {
+    endpoint: string;
+    username: string;
+    password: string;
+    root: string;
+    preset: string;
+    deviceId: string;
+    deviceName: string;
+  };
+  schedule: {
+    minimizeToTray: boolean;
+    autoStart: boolean;
+    hourly: boolean;
+    daily: boolean;
+    dailyTime: string;
+    notifyOnSuccess: boolean;
+  };
 };
 
 export type ToolRow = { id: string; name: string; icon: string; enabled: boolean; dir: string | null; candidatePaths: string[] };
@@ -137,3 +156,24 @@ export type UpdateStatus = {
 };
 
 export type UpdateEvent = UpdateStatus & { event: "state" | "focus-update" };
+
+// ===== WebDAV 跨设备同步 =====
+
+export type WebDavStatus = {
+  running: boolean;
+  configured: boolean;
+  deviceId: string;
+  deviceName: string;
+  lastSyncAt: string;
+  stage: "idle" | "connect" | "pull" | "download" | "upload" | "push" | "done" | "cancelled" | "error";
+  stageLabel: string;
+  detail: string;
+  lastError: string;
+};
+
+export type RemoteDevice = { id: string; name: string; appVersion: string; lastSyncAt: string; self: boolean };
+
+export type WebDavLog = { at: string; text: string };
+
+export type WebDavEvent = { event: "webdav"; stage: string; detail: string; running: boolean };
+

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // 设置
 import { ref, onMounted } from "vue";
-import { loadConfig, saveConfig, listTools, browseDir, trashList, trashRestore, trashPurge, openDataDir, getDataDir, type AppConfig, type ToolRow, type TrashRow } from "../api/ipc";
+import { loadConfig, saveConfig, listTools, browseDir, trashList, trashRestore, trashPurge, openDataDir, getDataDir, getIsPortable, type AppConfig, type ToolRow, type TrashRow } from "../api/ipc";
 import { fmtTime, fmtSize } from "../utils/format";
 
 const cfg = ref<AppConfig | null>(null);
@@ -10,11 +10,13 @@ const trash = ref<TrashRow[]>([]);
 const hubDirLabel = ref("%USERPROFILE%\\.agent_skills");
 const actionMsg = ref("");
 const saving = ref(false);
+const portable = ref(false);
 
 async function load() {
   cfg.value = await loadConfig();
   tools.value = (await listTools()) || [];
   trash.value = (await trashList()) || [];
+  portable.value = !!(await getIsPortable());
   const dir = await getDataDir();
   if (dir) hubDirLabel.value = dir;
 }
@@ -182,6 +184,71 @@ onMounted(load);
                 <span class="track"></span>
               </span>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 后台与调度：托盘常驻 / 开机自启 / 定时 WebDAV 同步 -->
+      <div class="section">
+        <h2>后台与调度</h2>
+        <p class="desc">托盘常驻与定时同步。关闭窗口默认缩到托盘，托盘菜单可随时手动同步或暂停调度。</p>
+        <div class="panel">
+          <div class="row-between">
+            <div>
+              <div class="small" style="font-weight:500">关闭窗口时缩到托盘</div>
+              <div class="help" style="margin-top:2px">关闭后台常驻运行；关掉此项则关闭窗口即退出</div>
+            </div>
+            <span class="switch">
+              <input type="checkbox" v-model="cfg.schedule.minimizeToTray" />
+              <span class="track"></span>
+            </span>
+          </div>
+          <hr class="divider" />
+          <div class="row-between">
+            <div>
+              <div class="small" style="font-weight:500">开机自动启动</div>
+              <div class="help" style="margin-top:2px">{{ portable ? "便携版不支持（注册的是临时解压路径），此项无效" : "开机后在后台启动并按下面的计划自动同步" }}</div>
+            </div>
+            <span class="switch">
+              <input type="checkbox" v-model="cfg.schedule.autoStart" :disabled="portable" />
+              <span class="track"></span>
+            </span>
+          </div>
+          <hr class="divider" />
+          <div class="row-between">
+            <div>
+              <div class="small" style="font-weight:500">每小时自动同步</div>
+              <div class="help" style="margin-top:2px">需先在「WebDAV 同步」页配置好服务器</div>
+            </div>
+            <span class="switch">
+              <input type="checkbox" v-model="cfg.schedule.hourly" />
+              <span class="track"></span>
+            </span>
+          </div>
+          <hr class="divider" />
+          <div class="row-between">
+            <div>
+              <div class="small" style="font-weight:500">每天定时同步</div>
+              <div class="help" style="margin-top:2px">错过时刻（关机 / 睡眠）后当天内会补跑一次</div>
+            </div>
+            <div class="row" style="gap:10px">
+              <span class="switch">
+                <input type="checkbox" v-model="cfg.schedule.daily" />
+                <span class="track"></span>
+              </span>
+              <input class="input mono" type="time" v-model="cfg.schedule.dailyTime" style="width:120px" :disabled="!cfg.schedule.daily" />
+            </div>
+          </div>
+          <hr class="divider" />
+          <div class="row-between" style="margin-bottom:0">
+            <div>
+              <div class="small" style="font-weight:500">同步成功也弹系统通知</div>
+              <div class="help" style="margin-top:2px">失败始终会提醒；开启后成功也通知一次</div>
+            </div>
+            <span class="switch">
+              <input type="checkbox" v-model="cfg.schedule.notifyOnSuccess" />
+              <span class="track"></span>
+            </span>
           </div>
         </div>
       </div>

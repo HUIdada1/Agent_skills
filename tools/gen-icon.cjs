@@ -1,12 +1,11 @@
-// 生成 build/icon.png 和 build/icon.ico，纯 Node 手搓 PNG/ICO，运行：node tools/gen-icon.cjs
+// 生成 build/icon.png / build/icon.ico / build/tray.png，纯 Node 手搓 PNG/ICO，运行：node tools/gen-icon.cjs
 "use strict";
 const fs = require("node:fs");
 const path = require("node:path");
 const zlib = require("node:zlib");
 
-const SIZE = 256;
-
-const px = new Uint8Array(SIZE * SIZE * 4);
+let SIZE = 256;
+let px = new Uint8Array(SIZE * SIZE * 4);
 
 function setPixel(x, y, r, g, b, a) {
   const i = (y * SIZE + x) * 4;
@@ -122,12 +121,20 @@ function wrapICO(png) {
   return out;
 }
 
-drawBackground();
-drawCube();
+function render(size) {
+  SIZE = size;
+  px = new Uint8Array(SIZE * SIZE * 4);
+  drawBackground();
+  drawCube();
+  return encodePNG();
+}
 
-const png = encodePNG();
+const iconPng = render(256);
+// 托盘小图标单独出 32px（Windows 托盘直接缩 256px 会糊）
+const trayPng = render(32);
 const buildDir = path.join(__dirname, "..", "build");
 fs.mkdirSync(buildDir, { recursive: true });
-fs.writeFileSync(path.join(buildDir, "icon.png"), png);
-fs.writeFileSync(path.join(buildDir, "icon.ico"), wrapICO(png));
-console.log(`图标已生成：build/icon.png（${png.length} 字节）+ build/icon.ico`);
+fs.writeFileSync(path.join(buildDir, "icon.png"), iconPng);
+fs.writeFileSync(path.join(buildDir, "icon.ico"), wrapICO(iconPng));
+fs.writeFileSync(path.join(buildDir, "tray.png"), trayPng);
+console.log(`图标已生成：build/icon.png（${iconPng.length} 字节）+ build/icon.ico + build/tray.png（${trayPng.length} 字节）`);

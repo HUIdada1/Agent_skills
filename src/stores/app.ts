@@ -8,6 +8,7 @@ export type PageName =
   | "skill-detail"
   | "sync"
   | "dedup"
+  | "webdav"
   | "settings"
   | "updater";
 

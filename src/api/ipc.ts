@@ -2,11 +2,13 @@
 import type {
   AppConfig, SkillRow, SkillDetail, Overview, SyncPlan, SyncResult, ConflictItem, ConflictDiff,
   ReportRow, ToolRow, TrashRow, UpdateStatus, UpdateEvent,
+  WebDavStatus, RemoteDevice, WebDavLog,
 } from "../types";
 
 export type {
   AppConfig, SkillRow, SkillDetail, Overview, SyncPlan, SyncResult, ConflictItem, ConflictDiff,
   ReportRow, ToolRow, TrashRow, UpdateStatus, UpdateEvent,
+  WebDavStatus, RemoteDevice, WebDavLog,
 } from "../types";
 
 type InvokeFn = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
@@ -37,6 +39,13 @@ export const setTitlebarTheme = (theme: string) => call<void>("set_titlebar_them
 
 export const loadConfig = () => call<AppConfig>("load_config");
 export const saveConfig = (config: AppConfig) => call<{ ok: boolean; message: string }>("save_config", { config: JSON.parse(JSON.stringify(config)) });
+
+export const webdavTest = (config?: AppConfig) => call<{ ok: boolean; message: string; latencyMs?: number }>("webdav_test", config ? { config: JSON.parse(JSON.stringify(config)) } : {});
+export const webdavSync = () => call<{ ok: boolean; message?: string }>("webdav_sync");
+export const webdavCancel = () => call<{ ok: boolean }>("webdav_cancel");
+export const webdavStatus = () => call<WebDavStatus>("webdav_status");
+export const webdavLogs = () => call<WebDavLog[]>("webdav_logs");
+export const webdavDevices = () => call<{ devices: RemoteDevice[]; error?: string }>("webdav_devices");
 
 export const listTools = () => call<ToolRow[]>("list_tools");
 export const getOverview = () => call<Overview>("get_overview");

@@ -34,7 +34,8 @@ async function pick(c: ConflictItem) {
   active.value = c;
   diff.value = null;
   diffLines.value = null;
-  if (c.kind === "content") {
+  // content 与 remote 冲突都走双栏 SKILL.md 对比（remote 的右侧是同步时暂存的远端版）
+  if (c.kind === "content" || c.kind === "remote") {
     const d = await getConflictDiff(c.id);
     diff.value = d;
     if (d) {
@@ -88,7 +89,7 @@ onMounted(load);
       <p class="desc">同名但内容不一样，选保留哪边。落选的会先进回收站，可还原。</p>
       <div class="panel" style="padding: 6px 18px;" v-if="conflicts.length">
         <div class="tool-row" v-for="c in conflicts" :key="c.id" :style="active?.id === c.id ? 'background:var(--panel-2)' : ''">
-          <div class="tool-icon" :style="{ color: c.kind === 'norm' ? 'var(--info)' : 'var(--warn)' }"><i class="ph ph-git-merge"></i></div>
+          <div class="tool-icon" :style="{ color: c.kind === 'norm' ? 'var(--info)' : c.kind === 'remote' ? 'var(--warn)' : 'var(--warn)' }"><i class="ph" :class="c.kind === 'remote' ? 'ph-cloud' : 'ph-git-merge'"></i></div>
           <div class="t-main">
             <div class="t-name">{{ c.title }}</div>
             <div class="t-path">{{ c.detail }}</div>
@@ -139,6 +140,35 @@ onMounted(load);
       <div class="row" style="gap:10px">
         <button class="btn btn-primary" @click="resolve('same')"><i class="ph ph-git-merge"></i>确认同一，合并为一个</button>
         <button class="btn" @click="resolve('different')"><i class="ph ph-x"></i>是不同技能，忽略</button>
+      </div>
+    </div>
+
+    <!-- 跨设备冲突：两台电脑都改了同一技能，裁决后下次 WebDAV 同步按结果执行 -->
+    <div class="section" v-if="active && active.kind === 'remote'">
+      <h2>跨设备冲突：{{ active.skill }}</h2>
+      <p class="desc">{{ active.detail }}。本机版哈希 <span class="mono">{{ (active.localHash || "").slice(0, 12) }}</span>，远端版哈希 <span class="mono">{{ (active.remoteHash || "").slice(0, 12) }}</span>。</p>
+      <div class="diff-wrap" v-if="diffLines">
+        <div class="diff-col">
+          <div class="d-head"><span>{{ diff?.left.label }}</span><span class="mono" style="color:var(--text-3)">{{ diffStatsRow.del }} 处差异</span></div>
+          <div class="d-body">
+            <span v-for="(l, i) in diffLines.left" :key="i" :class="l.kind" style="display:block">{{ l.text || " " }}</span>
+          </div>
+        </div>
+        <div class="diff-col">
+          <div class="d-head"><span>{{ diff?.right.label }}</span><span class="mono" style="color:var(--text-3)">{{ diffStatsRow.add }} 处差异</span></div>
+          <div class="d-body">
+            <span v-for="(l, i) in diffLines.right" :key="i" :class="l.kind" style="display:block">{{ l.text || " " }}</span>
+          </div>
+        </div>
+      </div>
+      <div class="note mt-8" v-else><i class="ph ph-info"></i><div>远端版暂存缺失（可能同步被中断），回到「WebDAV 同步」页重新同步一次再裁决。</div></div>
+
+      <div class="row mt-16" style="gap:10px">
+        <button class="btn btn-primary" @click="resolve('keepLocal')"><i class="ph ph-desktop"></i>保留本机版</button>
+        <button class="btn" @click="resolve('keepRemote')"><i class="ph ph-cloud-arrow-down"></i>采用远端版</button>
+        <button class="btn" @click="resolve('keepBoth')"><i class="ph ph-copy"></i>双保留（远端版改名收下）</button>
+        <button class="btn" @click="dismiss"><i class="ph ph-x"></i>忽略</button>
+        <span class="muted small" style="margin-left:auto">落选版本将移入 <span class="mono">.trash\</span>，保留 {{ cfg?.trashDays ?? 7 }} 天</span>
       </div>
     </div>
 

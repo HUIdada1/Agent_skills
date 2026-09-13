@@ -92,10 +92,10 @@ function writeSyncReport(result) {
   return file;
 }
 
-function listReports(limit) {
+function listReports(limit, prefix = "sync-") {
   const dir = hub.reportsDir();
   if (!fs.existsSync(dir)) return [];
-  const files = fs.readdirSync(dir).filter((f) => f.startsWith("sync-") && f.endsWith(".md")).sort().reverse();
+  const files = fs.readdirSync(dir).filter((f) => f.startsWith(prefix) && f.endsWith(".md")).sort().reverse();
   return files.slice(0, limit || 20).map((f) => {
     const st = fs.statSync(path.join(dir, f));
     return { file: f, path: path.join(dir, f), mtimeMs: st.mtimeMs };
@@ -110,4 +110,70 @@ function readReport(file) {
   return fs.readFileSync(p, "utf-8");
 }
 
-module.exports = { writeSyncReport, listReports, readReport };
+// WebDAV 跨设备同步报告（文件名 webdav-*.md，与本地同步 sync-*.md 区分）
+function writeRemoteSyncReport(result) {
+  hub.ensureHub();
+  const now = new Date();
+  const s = result.summary;
+  const lines = [];
+  lines.push(`# WebDAV 同步报告 ${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`);
+  lines.push("");
+  lines.push(`设备：${result.device} ｜ 服务器：\`${result.endpoint}\``);
+  lines.push("");
+  lines.push("## 概要");
+  lines.push("");
+  lines.push(`下载 ${result.downloads.length} · 上传 ${result.uploads.length} · 冲突 ${s.conflicts} · 删除（远端 ${s.deletedRemote} / 本机 ${s.deletedLocal}）· 跳过 ${s.skipped}`);
+  lines.push("");
+
+  lines.push("## 下载明细");
+  lines.push("");
+  if (result.downloads.length) {
+    lines.push("| 技能 | 原因 | 内容哈希 |");
+    lines.push("|---|---|---|");
+    for (const d of result.downloads) lines.push(`| ${d.name} | ${d.reason} | \`${d.hash}\` |`);
+  } else {
+    lines.push("（无）");
+  }
+  lines.push("");
+
+  lines.push("## 上传明细");
+  lines.push("");
+  if (result.uploads.length) {
+    lines.push("| 技能 | 原因 | 文件数 |");
+    lines.push("|---|---|---|");
+    for (const u of result.uploads) lines.push(`| ${u.name} | ${u.reason} | ${u.files} |`);
+  } else {
+    lines.push("（无）");
+  }
+  lines.push("");
+
+  lines.push("## 冲突（待处理）");
+  lines.push("");
+  if (result.conflicts.length) {
+    for (const c of result.conflicts) lines.push(`- **${c}**：两台电脑都改了该技能（或本机新增与远端同名异容），远端版已暂存`);
+    lines.push("");
+    lines.push("跨设备冲突一律人工裁决，请在「去重与冲突」页处理。");
+  } else {
+    lines.push("（无）");
+  }
+  lines.push("");
+
+  lines.push("## 删除记录");
+  lines.push("");
+  if (result.deletions.length) {
+    lines.push("| 技能 | 位置 |");
+    lines.push("|---|---|");
+    for (const d of result.deletions) lines.push(`| ${d.name} | ${d.side} |`);
+    lines.push("");
+    lines.push("本机删除已进回收站，保留 7 天。");
+  } else {
+    lines.push("（无）");
+  }
+  lines.push("");
+
+  const file = path.join(hub.reportsDir(), `webdav-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.md`);
+  fs.writeFileSync(file, lines.join("\n"), "utf-8");
+  return file;
+}
+
+module.exports = { writeSyncReport, writeRemoteSyncReport, listReports, readReport };

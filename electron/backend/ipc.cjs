@@ -10,6 +10,26 @@ const report = require("./report.cjs");
 const scanner = require("./scanner.cjs");
 const mounter = require("./mounter.cjs");
 const updater = require("./updater.cjs");
+const remotesync = require("./remotesync.cjs");
+const webdav = require("./webdav.cjs");
+
+// 渲染层拿到的密码一律是掩码；保存/测试连接收到精确掩码时回填磁盘真值
+const PASSWORD_MASK = "••••••••";
+
+function maskConfig(c) {
+  const out = JSON.parse(JSON.stringify(c));
+  if (out.webdav && out.webdav.password) out.webdav.password = PASSWORD_MASK;
+  return out;
+}
+
+// 表单传回的密码是掩码时用磁盘真值替换，防止掩码被当密码存盘
+function unmaskPassword(next) {
+  if (next && next.webdav && next.webdav.password === PASSWORD_MASK) {
+    const disk = config.loadConfig();
+    next.webdav.password = disk.webdav.password || "";
+  }
+  return next;
+}
 
 let cfg = null;
 function C() {
@@ -58,10 +78,57 @@ function register({ ipcMain }) {
   ipcMain.handle("open_release_page", () => updater.openReleases());
   ipcMain.handle("open_repo_page", () => updater.openRepo());
 
-  ipcMain.handle("load_config", handle(() => C()));
+  ipcMain.handle("load_config", handle(() => maskConfig(C())));
   ipcMain.handle("save_config", handle(({ config: next }) => {
-    cfg = next;
-    return config.saveConfig(cfg);
+    cfg = unmaskPassword(JSON.parse(JSON.stringify(next)));
+    const r = config.saveConfig(cfg);
+    config.applyAutoStart(cfg);
+    return r;
+  }));
+
+  // WebDAV 跨设备同步
+  ipcMain.handle("webdav_test", handle(({ config: form }) => {
+    const c = form ? unmaskPassword(JSON.parse(JSON.stringify(form))) : C();
+    return webdav.test(c.webdav);
+  }));
+  ipcMain.handle("webdav_sync", handle(() => {
+    const c = C();
+    if (remotesync.isRunning()) return fail("同步已在进行中");
+    if (!remotesync.configured(c)) return fail("WebDAV 未配置完整（服务器地址 / 账号 / 密码）");
+    remotesync.run(c).catch(() => {}); // 后台跑，进度走事件广播；异常已在 run 内收口
+    return ok({});
+  }));
+  ipcMain.handle("webdav_cancel", handle(() => remotesync.cancel()));
+  ipcMain.handle("webdav_status", handle(() => {
+    const c = C();
+    const rstate = remotesync.loadRemoteState();
+    return {
+      running: remotesync.isRunning(),
+      configured: remotesync.configured(c),
+      deviceId: c.webdav.deviceId,
+      deviceName: c.webdav.deviceName,
+      lastSyncAt: rstate.lastSyncAt || "",
+      ...remotesync.progress(),
+    };
+  }));
+  ipcMain.handle("webdav_logs", handle(() => remotesync.recentLogs()));
+  ipcMain.handle("webdav_devices", handle(async () => {
+    const c = C();
+    if (!remotesync.configured(c)) return { devices: [], error: "未配置" };
+    try {
+      const entries = await webdav.list(webdav.joinUrl(c.webdav.endpoint, c.webdav.root, "devices"), c.webdav);
+      const devices = [];
+      for (const e of entries) {
+        if (e.isDir || !e.name.endsWith(".json")) continue;
+        try {
+          const d = JSON.parse(await webdav.getText(webdav.joinUrl(c.webdav.endpoint, c.webdav.root, "devices", e.name), c.webdav));
+          devices.push({ id: e.name.replace(/\.json$/, ""), name: d.name || e.name, appVersion: d.appVersion || "", lastSyncAt: d.lastSyncAt || "", self: e.name === `${c.webdav.deviceId}.json` });
+        } catch { /* 单个设备信息坏了不影响其他 */ }
+      }
+      return { devices };
+    } catch (e) {
+      return { devices: [], error: String((e && e.message) || e) };
+    }
   }));
 
   ipcMain.handle("list_tools", handle(() => adapter.listTools(C())));
@@ -140,8 +207,12 @@ function register({ ipcMain }) {
   }));
 
   ipcMain.handle("sync_plan", handle(() => syncer.planSync(C())));
-  ipcMain.handle("sync_execute", handle(({ plan }) => syncer.executeSync(C(), plan)));
-  ipcMain.handle("list_reports", handle(() => report.listReports(30)));
+  ipcMain.handle("sync_execute", handle(({ plan }) => {
+    const busy = remotesync.runningHint();
+    if (busy) return fail(busy); // 两个同步都动中央仓库，禁止并发
+    return syncer.executeSync(C(), plan);
+  }));
+  ipcMain.handle("list_reports", handle(() => report.listReports(30, ""))); // 全部报告（sync-*/webdav-*），前端按前缀过滤
   ipcMain.handle("read_report", handle(({ file }) => ({ content: report.readReport(file) })));
   ipcMain.handle("open_report", handle(async ({ file }) => {
     const p = path.join(hub.reportsDir(), path.basename(file));
@@ -154,12 +225,22 @@ function register({ ipcMain }) {
     const item = syncer.loadConflicts().items.find((x) => x.id === id);
     if (!item) return null;
     const fs = require("node:fs");
-    const leftPath = item.kind === "content" ? path.join(item.dir, item.skill) : null;
-    const rightPath = path.join(hub.skillsDir(), item.skill || "");
     const readMd = (p) => {
       const f = p && path.join(p, "SKILL.md");
       return f && fs.existsSync(f) ? fs.readFileSync(f, "utf-8") : "";
     };
+    // remote 冲突：左边是本机中央版，右边是同步时暂存的远端版
+    if (item.kind === "remote") {
+      const localDir = path.join(hub.skillsDir(), item.skill);
+      const remoteDir = remotesync.stagingDir(item.skill);
+      return {
+        item,
+        left: { label: "本机版", path: localDir, md: readMd(localDir) },
+        right: { label: "远端版", path: remoteDir, md: readMd(remoteDir) },
+      };
+    }
+    const leftPath = item.kind === "content" ? path.join(item.dir, item.skill) : null;
+    const rightPath = path.join(hub.skillsDir(), item.skill || "");
     return {
       item,
       left: { label: item.kind === "content" ? `${item.toolId} 版` : "技能 A", path: leftPath || "", md: item.kind === "content" ? readMd(leftPath) : "" },
@@ -172,7 +253,9 @@ function register({ ipcMain }) {
     if (!item) return fail("冲突不存在或已裁决");
     const r = item.kind === "norm"
       ? syncer.resolveNormConflict(item, choice, C())
-      : syncer.resolveContentConflict(item, choice, C());
+      : item.kind === "remote"
+        ? remotesync.resolveRemoteConflict(item, choice, C())
+        : syncer.resolveContentConflict(item, choice, C());
     if (r.ok) {
       item.resolved = { at: new Date().toISOString(), choice };
       syncer.saveConflicts(store);

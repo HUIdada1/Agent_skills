@@ -7,6 +7,7 @@ import LibraryView from "./views/LibraryView.vue";
 import SkillDetailView from "./views/SkillDetailView.vue";
 import SyncView from "./views/SyncView.vue";
 import DedupView from "./views/DedupView.vue";
+import WebdavView from "./views/WebdavView.vue";
 import SettingsView from "./views/SettingsView.vue";
 import UpdaterView from "./views/UpdaterView.vue";
 import logoUrl from "./assets/logo.png";
@@ -35,6 +36,7 @@ onMounted(() => {
           <SkillDetailView v-else-if="app.activePage === 'skill-detail'" />
           <SyncView v-else-if="app.activePage === 'sync'" />
           <DedupView v-else-if="app.activePage === 'dedup'" />
+          <WebdavView v-else-if="app.activePage === 'webdav'" />
           <SettingsView v-else-if="app.activePage === 'settings'" />
           <UpdaterView v-else />
         </KeepAlive>

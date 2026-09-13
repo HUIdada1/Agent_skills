@@ -1,6 +1,6 @@
 {
   "name": "agent-skills",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Agent_skills —— AI Agent 技能中央仓库：扫描 / 去重 / 收纳 / Junction 挂载共用 / MD 同步报告",
   "author": "HUIdada1",
   "type": "module",
@@ -12,6 +12,7 @@
     "electron:build": "npm run build && electron-builder",
     "electron:pack": "npm run build && electron-builder --dir",
     "selftest:core": "node tools/selftest-core.cjs",
+    "selftest:remote": "node tools/selftest-remotesync.cjs",
     "gen:icon": "node tools/gen-icon.cjs"
   },
   "dependencies": {
@@ -61,6 +62,10 @@
       {
         "from": "build/icon.png",
         "to": "build/icon.png"
+      },
+      {
+        "from": "build/tray.png",
+        "to": "build/tray.png"
       }
     ],
     "win": {
