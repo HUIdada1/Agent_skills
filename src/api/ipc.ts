@@ -8,7 +8,7 @@ import type {
 export type {
   AppConfig, SkillRow, SkillDetail, Overview, SyncPlan, SyncResult, ConflictItem, ConflictDiff,
   ReportRow, ToolRow, TrashRow, UpdateStatus, UpdateEvent,
-  WebDavStatus, RemoteDevice, WebDavLog,
+  WebDavStatus, RemoteDevice, WebDavLog, WebDavEvent,
 } from "../types";
 
 type InvokeFn = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
