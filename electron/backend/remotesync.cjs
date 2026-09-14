@@ -254,8 +254,10 @@ async function run(cfg) {
       setStage("pull", `检出冲突 ${c.name}（远端版暂存中）`, 18 + ((ci + 1) / plan.conflicts.length) * 8);
       const staging = stagingDir(c.name);
       fs.rmSync(staging, { recursive: true, force: true });
+      // 暂存也带台账哈希：散目录残渣与新包并存时（服务器删不动散目录），
+      // 不校验会把残渣当远端版暂存，keepRemote 裁决等于拿过时内容覆盖本机
       try {
-        await downloadSkillDir(cfg, `skills/${c.name}`, staging);
+        await downloadSkillDir(cfg, `skills/${c.name}`, staging, c.remoteHash);
         syncer.upsertConflict({
           id: `remote:${c.name}`,
           kind: "remote",
@@ -327,9 +329,9 @@ async function run(cfg) {
       checkAborted();
       setStage("upload", `删除远端 ${name}（本机已删除）`, 82 + ((ri + 1) / plan.deleteRemote.length) * 4);
       try {
-        // 两种布局都删：旧散目录 + 压缩包（均 404 幂等，残留任一都会让删除不彻底）
-        await webdav.remove(remoteUrl(cfg, "skills", name), cfg.webdav);
+        // 先删包（活跃格式）再删散目录：散目录删不动（服务器拒绝递归 DELETE）也不会卡住包
         await webdav.remove(remoteUrl(cfg, "skills", `${name}${PACK_EXT}`), cfg.webdav);
+        await webdav.remove(remoteUrl(cfg, "skills", name), cfg.webdav);
         result.deletions.push({ name, side: "远端" });
         result.summary.deletedRemote++;
       } catch (e) {

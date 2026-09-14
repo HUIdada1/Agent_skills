@@ -287,10 +287,16 @@ async function main() {
   const looseLeft = await webdav.list(legacyBase, WEBDAV);
   check("远端旧散目录已清理", looseLeft.length === 0);
 
+  // 再散一份旧内容的假目录（模拟服务器删不动的残渣），B 下载时应凭台账哈希识破、改走压缩包拿新内容
+  await webdav.ensureDir(legacyBase, WEBDAV);
+  for (const name of fs.readdirSync(legacyDir)) {
+    await webdav.put(`${legacyBase}/${name}`, WEBDAV, fs.readFileSync(path.join(legacyDir, name)));
+  }
+
   setHome(HOME_B);
   r = await runOrThrow(config.loadConfig());
-  check("B 从压缩包拉到 legacy 更新", r.summary.downloaded === 1);
-  check("B 的 legacy 与 A 一致", scanner.treeHash(path.join(HOME_B, "skills", "legacy-skill")) === scanner.treeHash(path.join(HOME_A, "skills", "legacy-skill")));
+  check("B 识破残渣散目录、从压缩包拉到 legacy 更新", r.summary.downloaded === 1);
+  check("B 的 legacy 是 A 的新版而非残渣", scanner.treeHash(path.join(HOME_B, "skills", "legacy-skill")) === scanner.treeHash(path.join(HOME_A, "skills", "legacy-skill")));
 
   server.close();
   console.log(`\n通过 ${passed} 项检查${process.exitCode ? "（有失败项）" : ""}`);

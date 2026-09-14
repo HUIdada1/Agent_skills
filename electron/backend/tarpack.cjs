@@ -13,7 +13,7 @@ const BLOCK = 512; // tar 块大小
 // devmajor 8 / devminor 8 / prefix 155，共 512 字节
 
 function writeOctal(buf, off, len, num) {
-  buf.write(num.toString(8), off, "ascii");
+  buf.write(num.toString(8).padStart(len - 1, "0"), off, "ascii"); // 右对齐补零，GNU tar 也能读
   buf[off + len - 1] = 0; // 字段末尾补 \0 收尾，才是合法 octal 字段
 }
 
