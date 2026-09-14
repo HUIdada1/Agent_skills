@@ -25,6 +25,13 @@ function loadTheme(): Theme {
   }
 }
 
+// 滚动位置是文档级一份、KeepAlive 不存它。切页不归零的话，旧页的滚动量会
+// 残留在新页上：矮页面被浏览器截断滚动量，高页面直接从中间开始显示，看起来
+// 就是"页面往上缩、下方错乱"。
+function scrollPageTop() {
+  window.scrollTo(0, 0);
+}
+
 export const useAppStore = defineStore("app", {
   state: () => ({
     activePage: "dashboard" as PageName,
@@ -50,10 +57,12 @@ export const useAppStore = defineStore("app", {
     },
     go(page: PageName) {
       this.activePage = page;
+      scrollPageTop();
     },
     openSkillDetail(name: string) {
       this.skillDetailName = name;
       this.activePage = "skill-detail";
+      scrollPageTop();
     },
     showHelp(section = "") {
       this.helpSection = section;

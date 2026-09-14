@@ -1,6 +1,6 @@
 {
   "name": "agent-skills",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Agent_skills —— AI Agent 技能中央仓库：扫描 / 去重 / 收纳 / Junction 挂载共用 / MD 同步报告",
   "author": "HUIdada1",
   "type": "module",
