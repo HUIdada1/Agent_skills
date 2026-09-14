@@ -10,7 +10,13 @@ const hub = require("./hub.cjs");
 const scanner = require("./scanner.cjs");
 const syncer = require("./syncer.cjs");
 const webdav = require("./webdav.cjs");
+const tarpack = require("./tarpack.cjs");
 const report = require("./report.cjs");
+
+// 远端技能两种布局并存：skills/<name>.tar.gz（本版起，单文件原子传输）与
+// skills/<name>/ 散目录（旧版客户端写的，读端仍兼容）。上传统一打包，散目录懒迁移：
+// 没改动的旧技能保持原样，有更新重传时自然换成包
+const PACK_EXT = ".tar.gz";
 
 const STAGE_LABEL = {
   idle: "空闲",
@@ -124,32 +130,33 @@ function stripForRemote(entry) {
 // ===== 目录传输 =====
 
 async function uploadSkillDir(cfg, localDir, remoteRel) {
-  await webdav.ensureDir(remoteUrl(cfg, remoteRel), cfg.webdav);
-  const files = [];
-  scanner.collectFiles(localDir, "", files);
-  // 逐文件 PUT（技能目录就几个小文件，不做文件级增量）
-  for (const f of files) {
-    const buf = fs.readFileSync(f.abs);
-    await webdav.put(remoteUrl(cfg, remoteRel, f.rel), cfg.webdav, buf);
+  const name = remoteRel.split("/").pop();
+  // 打包成临时文件再一次性 PUT：包小，整读内存无压力
+  const tmpPkg = path.join(config.hubDir(), ".remote-tmp", `${name}${PACK_EXT}`);
+  fs.mkdirSync(path.dirname(tmpPkg), { recursive: true });
+  const n = tarpack.packDir(localDir, tmpPkg);
+  try {
+    await webdav.put(remoteUrl(cfg, `${remoteRel}${PACK_EXT}`), cfg.webdav, fs.readFileSync(tmpPkg));
+  } finally {
+    fs.rmSync(tmpPkg, { force: true });
   }
-  // 远端多出来的文件/目录删掉（本地删了技能内文件或子目录的场景，DELETE 对集合递归）
-  const remoteEntries = await webdav.list(remoteUrl(cfg, remoteRel), cfg.webdav);
-  const localRels = new Set(files.map((f) => f.rel));
-  for (const e of remoteEntries) {
-    if (!localRels.has(e.name)) {
-      await webdav.remove(remoteUrl(cfg, remoteRel, e.name), cfg.webdav);
-    }
+  // 旧散目录若在就清掉（404 幂等）。删不动只记日志不判失败：包已传成，
+  // 读端靠哈希校验能分辨散目录是旧残渣还是旧客户端新写的
+  try {
+    await webdav.remove(remoteUrl(cfg, remoteRel), cfg.webdav);
+  } catch (e) {
+    log(`旧散目录 ${remoteRel} 清理失败：${e.message}`);
   }
-  return files.length;
+  return n;
 }
 
-async function downloadSkillDir(cfg, remoteRel, destDir) {
-  fs.mkdirSync(destDir, { recursive: true });
+// 散目录递归下载（旧版布局与回退路径共用）
+async function downloadLooseDir(cfg, remoteRel, destDir) {
   const entries = await webdav.list(remoteUrl(cfg, remoteRel), cfg.webdav);
   let n = 0;
   for (const e of entries) {
     if (e.isDir) {
-      n += await downloadSkillDir(cfg, `${remoteRel}/${e.name}`, path.join(destDir, e.name));
+      n += await downloadLooseDir(cfg, `${remoteRel}/${e.name}`, path.join(destDir, e.name));
       continue;
     }
     const buf = await webdav.get(remoteUrl(cfg, remoteRel, e.name), cfg.webdav);
@@ -158,6 +165,32 @@ async function downloadSkillDir(cfg, remoteRel, destDir) {
     n++;
   }
   return n;
+}
+
+/**
+ * 下载远端技能：散目录优先，解压包兜底。expectHash（台账哈希）用来分辨散目录是
+ * 旧客户端刚写的新内容还是包上传后没删干净的残渣——散目录内容与账不符时换包。
+ * 两种都拿不到合法内容就抛错，让上层按跳过处理，绝不拿残渣冒充技能。
+ */
+async function downloadSkillDir(cfg, remoteRel, destDir, expectHash) {
+  const name = remoteRel.split("/").pop();
+  fs.mkdirSync(destDir, { recursive: true });
+  const loose = await downloadLooseDir(cfg, remoteRel, destDir);
+  if (loose > 0 && (!expectHash || scanner.treeHash(destDir) === expectHash)) return loose;
+  if (loose > 0) fs.rmSync(destDir, { recursive: true, force: true }); // 残渣，换包重下
+  const pkg = await webdav.get(remoteUrl(cfg, `${remoteRel}${PACK_EXT}`), cfg.webdav);
+  if (pkg == null) {
+    throw new Error(`远端技能内容不一致且无压缩包可用：${name}`);
+  }
+  fs.mkdirSync(destDir, { recursive: true });
+  const tmpPkg = path.join(config.hubDir(), ".remote-tmp", `${name}${PACK_EXT}`);
+  fs.mkdirSync(path.dirname(tmpPkg), { recursive: true });
+  fs.writeFileSync(tmpPkg, pkg);
+  try {
+    return tarpack.unpack(tmpPkg, destDir);
+  } finally {
+    fs.rmSync(tmpPkg, { force: true });
+  }
 }
 
 // ===== 同步主流程 =====
@@ -204,10 +237,15 @@ async function run(cfg) {
     if (!remoteManifest.deleted || typeof remoteManifest.deleted !== "object") remoteManifest.deleted = {};
 
     const localManifest = hub.loadManifest();
-    const remoteDirs = (await webdav.list(remoteUrl(cfg, "skills"), cfg.webdav)).filter((e) => e.isDir).map((e) => e.name);
-    setStage("pull", `远端 ${Object.keys(remoteManifest.skills).length} 个技能 / ${remoteDirs.length} 个目录，本机 ${Object.keys(localManifest.skills).length} 个`, 16);
+    // 远端技能集：散目录（旧版布局）+ *.tar.gz 包（新版布局）合并收集，两种布局读端都认
+    const remoteSkills = [];
+    for (const e of await webdav.list(remoteUrl(cfg, "skills"), cfg.webdav)) {
+      const name = e.isDir ? e.name : e.name.endsWith(PACK_EXT) ? e.name.slice(0, -PACK_EXT.length) : "";
+      if (name && !remoteSkills.includes(name)) remoteSkills.push(name);
+    }
+    setStage("pull", `远端台账 ${Object.keys(remoteManifest.skills).length} 个技能，本机 ${Object.keys(localManifest.skills).length} 个`, 16);
 
-    const plan = computePlan(localManifest, remoteManifest, remoteDirs, rstate);
+    const plan = computePlan(localManifest, remoteManifest, remoteSkills, rstate);
     log(`计划：下载 ${plan.downloads.length} · 上传 ${plan.uploads.length} · 冲突 ${plan.conflicts.length} · 删远端 ${plan.deleteRemote.length} · 删本机 ${plan.deleteLocal.length}`);
 
     // ---- 冲突检出：远端版下载到暂存供裁决 ----
@@ -245,7 +283,7 @@ async function run(cfg) {
       const tmp = path.join(config.hubDir(), ".remote-tmp", d.name);
       fs.rmSync(tmp, { recursive: true, force: true });
       try {
-        await downloadSkillDir(cfg, `skills/${d.name}`, tmp);
+        await downloadSkillDir(cfg, `skills/${d.name}`, tmp, d.entry ? d.entry.treeHash : null);
         const hash = scanner.treeHash(tmp);
         deployDownload(d, tmp, hash, remoteManifest, result);
         rstate.base[d.name] = hash;
@@ -289,7 +327,9 @@ async function run(cfg) {
       checkAborted();
       setStage("upload", `删除远端 ${name}（本机已删除）`, 82 + ((ri + 1) / plan.deleteRemote.length) * 4);
       try {
+        // 两种布局都删：旧散目录 + 压缩包（均 404 幂等，残留任一都会让删除不彻底）
         await webdav.remove(remoteUrl(cfg, "skills", name), cfg.webdav);
+        await webdav.remove(remoteUrl(cfg, "skills", `${name}${PACK_EXT}`), cfg.webdav);
         result.deletions.push({ name, side: "远端" });
         result.summary.deletedRemote++;
       } catch (e) {
@@ -425,13 +465,13 @@ function reconcileManifest() {
  * 三方合并判定：base = 上次同步快照。
  * local 本机 skills/<name> 实际哈希；base 快照哈希；remote 远端台账哈希（null = 远端无）
  */
-function computePlan(localManifest, remoteManifest, remoteDirs, rstate) {
-  // 以两侧文件系统为准（本机 skills/ 目录 + 远端 skills/ 目录），台账只是辅助记录
+function computePlan(localManifest, remoteManifest, remoteSkills, rstate) {
+  // 以两侧文件系统为准（本机 skills/ 目录 + 远端 skills/ 的目录或包），台账只是辅助记录
   const names = new Set([
     ...localSkillNames(),
     ...Object.keys(localManifest.skills),
     ...Object.keys(remoteManifest.skills),
-    ...remoteDirs,
+    ...remoteSkills,
   ]);
   // 本机墓碑（removeSkill 写入）：treeHash 匹配的远端同名技能不再拉回
   const tombstones = localManifest.deleted || {};
@@ -480,8 +520,8 @@ function computePlan(localManifest, remoteManifest, remoteDirs, rstate) {
     }
     // 两边都没有：同名目录既不在本机也不在远端台账，无事可做
   }
-  // 孤儿自愈：远端目录有、远端台账没收录、本机也没有 → 下载后按实际内容收录
-  for (const name of remoteDirs) {
+  // 孤儿自愈：远端有目录或包、远端台账没收录、本机也没有 → 下载后按实际内容收录
+  for (const name of remoteSkills) {
     if (!remoteManifest.skills[name] && !localManifest.skills[name] && !plan.downloads.some((d) => d.name === name)) {
       plan.downloads.push({ name, reason: "远端孤儿目录，自愈收录", entry: null, orphan: true });
     }

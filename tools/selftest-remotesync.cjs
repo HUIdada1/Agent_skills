@@ -132,7 +132,7 @@ async function main() {
   const manifestText = await webdav.getText(webdav.joinUrl(WEBDAV.endpoint, WEBDAV.root, "manifest.json"), WEBDAV);
   const remoteManifest = JSON.parse(manifestText);
   check("远端台账收录 2 个技能", Object.keys(remoteManifest.skills).length === 2);
-  check("远端技能文件可读", (await webdav.get(webdav.joinUrl(WEBDAV.endpoint, WEBDAV.root, "skills/skill-a/SKILL.md"), WEBDAV)) != null);
+  check("远端技能已打包成 tar.gz", (await webdav.get(webdav.joinUrl(WEBDAV.endpoint, WEBDAV.root, "skills/skill-a.tar.gz"), WEBDAV)).length > 0);
   check("远端设备注册存在", (await webdav.get(webdav.joinUrl(WEBDAV.endpoint, WEBDAV.root, `devices/${cfg.webdav.deviceId}.json`), WEBDAV)) != null);
   const hashA1 = scanner.treeHash(path.join(HOME_A, "skills", "skill-a"));
 
@@ -201,7 +201,7 @@ async function main() {
   await runOrThrow(config.loadConfig());
   const mRemote = JSON.parse(await webdav.getText(webdav.joinUrl(WEBDAV.endpoint, WEBDAV.root, "manifest.json"), WEBDAV));
   check("远端台账记了墓碑", !!mRemote.deleted["skill-b"]);
-  check("远端 skill-b 已删", (await webdav.get(webdav.joinUrl(WEBDAV.endpoint, WEBDAV.root, "skills/skill-b/SKILL.md"), WEBDAV)) == null);
+  check("远端 skill-b 压缩包已删", (await webdav.get(webdav.joinUrl(WEBDAV.endpoint, WEBDAV.root, "skills/skill-b.tar.gz"), WEBDAV)) == null);
 
   setHome(HOME_B);
   r = await runOrThrow(config.loadConfig());
@@ -254,6 +254,43 @@ async function main() {
   // ---- 场景 9：取消接口在空闲时安全 ----
   const c = remotesync.cancel();
   check("空闲取消不报错", c.ok);
+
+  // ---- 场景 10：旧版散目录兼容（散传能收，改动重传后收敛成包） ----
+  // 绕过客户端直接往 mock store 散 PUT 文件并手工上账，等价于旧版客户端推上来的布局
+  mkSkill(TMP, "legacy-skill", "旧版散目录技能");
+  const legacyDir = path.join(TMP, "skills", "legacy-skill");
+  const legacyHash = scanner.treeHash(legacyDir);
+  const legacyBase = webdav.joinUrl(WEBDAV.endpoint, WEBDAV.root, "skills/legacy-skill");
+  await webdav.ensureDir(legacyBase, WEBDAV);
+  for (const name of fs.readdirSync(legacyDir)) {
+    await webdav.put(`${legacyBase}/${name}`, WEBDAV, fs.readFileSync(path.join(legacyDir, name)));
+  }
+  const mWithLegacy = JSON.parse(await webdav.getText(webdav.joinUrl(WEBDAV.endpoint, WEBDAV.root, "manifest.json"), WEBDAV));
+  mWithLegacy.skills["legacy-skill"] = {
+    name: "legacy-skill",
+    treeHash: legacyHash,
+    skillName: "legacy-skill",
+    sources: [{ tool: "webdav", originalName: "legacy-skill", firstSeen: new Date().toISOString() }],
+    mergeHistory: [],
+  };
+  await webdav.put(webdav.joinUrl(WEBDAV.endpoint, WEBDAV.root, "manifest.json"), WEBDAV, JSON.stringify(mWithLegacy, null, 2));
+
+  setHome(HOME_A);
+  r = await runOrThrow(config.loadConfig());
+  check("A 收下旧版散目录技能", r.summary.downloaded === 1);
+  check("散目录内容与旧版一致", scanner.treeHash(path.join(HOME_A, "skills", "legacy-skill")) === legacyHash);
+
+  fs.writeFileSync(path.join(HOME_A, "skills", "legacy-skill", "extra.txt"), "A 改过的 legacy 内容", "utf-8");
+  r = await runOrThrow(config.loadConfig());
+  check("A 的改动重传成包", r.summary.uploaded === 1);
+  check("远端新增 legacy 压缩包", (await webdav.get(webdav.joinUrl(WEBDAV.endpoint, WEBDAV.root, "skills/legacy-skill.tar.gz"), WEBDAV)) != null);
+  const looseLeft = await webdav.list(legacyBase, WEBDAV);
+  check("远端旧散目录已清理", looseLeft.length === 0);
+
+  setHome(HOME_B);
+  r = await runOrThrow(config.loadConfig());
+  check("B 从压缩包拉到 legacy 更新", r.summary.downloaded === 1);
+  check("B 的 legacy 与 A 一致", scanner.treeHash(path.join(HOME_B, "skills", "legacy-skill")) === scanner.treeHash(path.join(HOME_A, "skills", "legacy-skill")));
 
   server.close();
   console.log(`\n通过 ${passed} 项检查${process.exitCode ? "（有失败项）" : ""}`);
