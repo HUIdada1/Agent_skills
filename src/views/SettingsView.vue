@@ -16,15 +16,12 @@ const saving = ref(false);
 const portable = ref(false);
 
 // ---- 工具适配器：扫描发现 / 手动新增 ----
-const ICON_CHOICES = ["ph-robot", "ph-command", "ph-terminal-window", "ph-sparkle", "ph-code", "ph-cube", "ph-brain", "ph-package", "ph-folder-open", "ph-airplane-tilt", "ph-circle-wavy-question"];
-const iconLabel = (i: string) => i.replace("ph-", "");
-
 const probeOpen = ref(false);
 const probeLoading = ref(false);
 const probed = ref<ProbeRow[]>([]);
 
 const manualOpen = ref(false);
-const manual = ref({ name: "", id: "", icon: "ph-robot", path: "" });
+const manual = ref({ name: "", id: "", path: "" });
 const idTouched = ref(false); // 用户手动改过 id 后，改名字就不再覆盖它
 
 // 名字改了就联动生成 id，除非用户已经自己改过 id
@@ -36,12 +33,10 @@ async function load() {
   try {
     cfg.value = await loadConfig();
     tools.value = (await listTools()) || [];
-    // 旧配置里工具条目可能没存 name/icon，按后端解析结果补齐，让卡片显示注册表默认值
+    // 旧配置里工具条目可能没存 name，按后端解析结果补齐，让卡片显示默认名
     for (const t of tools.value) {
       const tc = cfg.value?.tools?.[t.id];
-      if (!tc) continue;
-      if (!tc.name) tc.name = t.name;
-      if (!tc.icon) tc.icon = t.icon;
+      if (tc && !tc.name) tc.name = t.name;
     }
     trash.value = (await trashList()) || [];
     portable.value = !!(await getIsPortable());
@@ -109,7 +104,7 @@ function adopt(row: ProbeRow) {
 function openManual() {
   manualOpen.value = !manualOpen.value;
   probeOpen.value = false;
-  manual.value = { name: "", id: "", icon: "ph-robot", path: "" };
+  manual.value = { name: "", id: "", path: "" };
   idTouched.value = false;
 }
 
@@ -126,8 +121,8 @@ function submitManual() {
   if (!/^[a-z0-9][a-z0-9_-]{0,31}$/.test(id)) { actionMsg.value = "id 只能用小写字母数字开头，可含 -_，最长 32 位"; return; }
   if (cfg.value.tools[id]) { actionMsg.value = `id「${id}」已被占用，换一个`; return; }
   const paths = manual.value.path.trim() ? [manual.value.path.trim()] : [""];
-  cfg.value.tools[id] = { name, icon: manual.value.icon, enabled: true, paths };
-  tools.value.push({ id, name, icon: manual.value.icon, builtin: false, deletable: true, enabled: true, dir: paths[0], candidatePaths: paths });
+  cfg.value.tools[id] = { name, enabled: true, paths };
+  tools.value.push({ id, name, icon: "ph-robot", builtin: false, deletable: true, enabled: true, dir: paths[0], candidatePaths: paths });
   manualOpen.value = false;
   actionMsg.value = `已添加「${name}」，保存后生效`;
 }
@@ -216,12 +211,6 @@ onActivated(load);
           <div class="tool-block" v-for="t in tools" :key="t.id">
             <div class="tool-head">
               <div class="tool-title">
-                <el-select v-model="cfg!.tools[t.id]!.icon" class="icon-select" size="small">
-                  <template #prefix><i class="ph" :class="cfg!.tools[t.id]!.icon"></i></template>
-                  <el-option v-for="i in ICON_CHOICES" :key="i" :value="i" :label="iconLabel(i)">
-                    <i class="ph" :class="i" style="margin-right:6px"></i><span class="small">{{ iconLabel(i) }}</span>
-                  </el-option>
-                </el-select>
                 <el-input v-model="cfg!.tools[t.id]!.name" class="name-in" size="small" placeholder="显示名" />
                 <span class="tool-id mono">{{ t.id }}</span>
                 <span class="badge mute" v-if="t.builtin" title="内置工具不可删除，只能停用">内置</span>
@@ -276,15 +265,6 @@ onActivated(load);
               <div class="field">
                 <label>id（引用键，创建后不可改，用于来源与挂载记录）</label>
                 <el-input v-model="manual.id" placeholder="例如 cursor" class="mono-in" style="max-width:360px" @input="idTouched = true" />
-              </div>
-              <div class="field">
-                <label>图标</label>
-                <el-select v-model="manual.icon" class="icon-select">
-                  <template #prefix><i class="ph" :class="manual.icon"></i></template>
-                  <el-option v-for="i in ICON_CHOICES" :key="i" :value="i" :label="iconLabel(i)">
-                    <i class="ph" :class="i" style="margin-right:6px"></i><span class="small">{{ iconLabel(i) }}</span>
-                  </el-option>
-                </el-select>
               </div>
               <div class="field" style="margin-bottom:4px">
                 <label>技能目录（可留空，保存后回到上面卡片再补候选路径）</label>
@@ -498,10 +478,6 @@ onActivated(load);
 .tool-name { font-weight: 600; font-size: 13.5px; }
 .tool-id { color: var(--text-3); font-size: 11px; flex: none; }
 .name-in { max-width: 220px; }
-.icon-select { width: 150px; flex: none; }
-.icon-select :deep(.el-select__prefix) { left: 10px; display: flex; align-items: center; }
-.icon-select :deep(.el-select__placeholder),
-.icon-select :deep(.el-select__selected-item) { padding-left: 22px; }
 .path-row { display: flex; gap: 8px; margin-bottom: 8px; }
 .path-row :deep(.el-input) { flex: 1; }
 .hit-line { margin: 8px 0; }
