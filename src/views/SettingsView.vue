@@ -211,7 +211,7 @@ onActivated(load);
           <div class="tool-block" v-for="t in tools" :key="t.id">
             <div class="tool-head">
               <div class="tool-title">
-                <el-input v-model="cfg!.tools[t.id]!.name" class="name-in" size="small" placeholder="显示名" />
+                <el-input size="small" v-model="cfg!.tools[t.id]!.name" class="name-in" placeholder="显示名" />
                 <span class="tool-id mono">{{ t.id }}</span>
                 <span class="badge mute" v-if="t.builtin" title="内置工具不可删除，只能停用">内置</span>
               </div>
@@ -224,9 +224,9 @@ onActivated(load);
               </div>
             </div>
             <div class="path-row" v-for="(p, i) in cfg!.tools[t.id]!.paths" :key="i">
-              <el-input v-model="cfg!.tools[t.id]!.paths[i]" placeholder="候选路径（~ 开头或绝对路径）" class="mono-in" />
-              <el-button @click="browseToolPath(t.id, i)" title="浏览"><i class="ph ph-folder-open"></i></el-button>
-              <el-button v-if="cfg!.tools[t.id]!.paths.length > 1" @click="cfg!.tools[t.id]!.paths.splice(i, 1)" title="移除"><i class="ph ph-x"></i></el-button>
+              <el-input size="small" v-model="cfg!.tools[t.id]!.paths[i]" placeholder="候选路径（~ 开头或绝对路径）" class="mono-in" />
+              <el-button size="small" @click="browseToolPath(t.id, i)" title="浏览"><i class="ph ph-folder-open"></i></el-button>
+              <el-button size="small" v-if="cfg!.tools[t.id]!.paths.length > 1" @click="cfg!.tools[t.id]!.paths.splice(i, 1)" title="移除"><i class="ph ph-x"></i></el-button>
             </div>
             <div class="hit-line" v-if="t.dir"><span class="badge ok"><i class="ph ph-check-circle"></i>命中：{{ t.dir }}</span></div>
             <div class="hit-line" v-else-if="t.enabled"><span class="badge warn"><i class="ph ph-warning"></i>候选路径均不存在</span></div>
@@ -238,8 +238,8 @@ onActivated(load);
 
           <div class="probe-area">
             <div class="row" style="gap:10px">
-              <el-button :loading="probeLoading" @click="doProbe"><i class="ph ph-radar"></i>扫描电脑发现</el-button>
-              <el-button @click="openManual"><i class="ph ph-plus"></i>手动新增适配器</el-button>
+              <el-button size="small" :loading="probeLoading" @click="doProbe"><i class="ph ph-radar"></i>扫描电脑发现</el-button>
+              <el-button size="small" @click="openManual"><i class="ph ph-plus"></i>手动新增适配器</el-button>
               <span class="small muted" style="align-self:center">探测只读不写配置，你点添加才会进列表。</span>
             </div>
 
@@ -260,17 +260,17 @@ onActivated(load);
             <div class="probe-panel" v-if="manualOpen">
               <div class="field">
                 <label>显示名</label>
-                <el-input v-model="manual.name" placeholder="例如 Cursor" style="max-width:360px" @input="onNameInput" />
+                <el-input size="small" v-model="manual.name" placeholder="例如 Cursor" style="max-width:360px" @input="onNameInput" />
               </div>
               <div class="field">
                 <label>id（引用键，创建后不可改，用于来源与挂载记录）</label>
-                <el-input v-model="manual.id" placeholder="例如 cursor" class="mono-in" style="max-width:360px" @input="idTouched = true" />
+                <el-input size="small" v-model="manual.id" placeholder="例如 cursor" class="mono-in" style="max-width:360px" @input="idTouched = true" />
               </div>
               <div class="field" style="margin-bottom:4px">
                 <label>技能目录（可留空，保存后回到上面卡片再补候选路径）</label>
                 <div class="path-row">
-                  <el-input v-model="manual.path" placeholder="~/.cursor/skills 或绝对路径" class="mono-in" />
-                  <el-button @click="browseManualPath" title="浏览"><i class="ph ph-folder-open"></i></el-button>
+                  <el-input size="small" v-model="manual.path" placeholder="~/.cursor/skills 或绝对路径" class="mono-in" />
+                  <el-button size="small" @click="browseManualPath" title="浏览"><i class="ph ph-folder-open"></i></el-button>
                 </div>
               </div>
               <div class="row" style="gap:10px">
@@ -287,9 +287,9 @@ onActivated(load);
             </div>
             <p class="help" style="margin-bottom:10px">没有 agent 身份的裸目录。若它是某个 agent 的技能目录，建议用上面的「手动新增适配器」挂个名字，来源归属和挂载状态会更清楚。</p>
             <div class="path-row" v-for="(p, i) in cfg!.customDirs" :key="i">
-              <el-input v-model="cfg!.customDirs[i]" class="mono-in" />
-              <el-button @click="browseToolPath('custom', i)" title="浏览"><i class="ph ph-folder-open"></i></el-button>
-              <el-button @click="cfg!.customDirs.splice(i, 1)" title="移除"><i class="ph ph-x"></i></el-button>
+              <el-input size="small" v-model="cfg!.customDirs[i]" class="mono-in" />
+              <el-button size="small" @click="browseToolPath('custom', i)" title="浏览"><i class="ph ph-folder-open"></i></el-button>
+              <el-button size="small" @click="cfg!.customDirs.splice(i, 1)" title="移除"><i class="ph ph-x"></i></el-button>
             </div>
             <div class="add-line">
               <el-button size="small" @click="browseCustomAdd"><i class="ph ph-plus"></i>添加自定义目录</el-button>
@@ -329,7 +329,7 @@ onActivated(load);
             </div>
             <div class="field days-field">
               <label>回收站保留天数</label>
-              <el-input-number v-model="cfg!.trashDays" :min="1" :max="90" style="width:150px" />
+              <el-input-number size="small" v-model="cfg!.trashDays" :min="1" :max="90" style="width:150px" />
               <div class="help">超期后由同步与清理动作自动清除；回收站内容见下方。</div>
             </div>
           </div>
@@ -342,14 +342,14 @@ onActivated(load);
             <div class="field">
               <label>中央仓库位置</label>
               <div class="path-row">
-                <el-input :model-value="hubDirLabel" disabled class="mono-in" />
-                <el-button @click="openDataDir" title="打开"><i class="ph ph-folder-open"></i></el-button>
+                <el-input size="small" :model-value="hubDirLabel" disabled class="mono-in" />
+                <el-button size="small" @click="openDataDir" title="打开"><i class="ph ph-folder-open"></i></el-button>
               </div>
               <div class="help">包含 skills（真身）、manifest.json、reports、.trash 四部分。</div>
             </div>
             <div class="field">
               <label>更新渠道</label>
-              <el-select v-model="cfg!.update.channel" style="width:220px">
+              <el-select size="small" v-model="cfg!.update.channel" style="width:220px">
                 <el-option value="stable" label="stable（正式版）" />
                 <el-option value="beta" label="beta（预发布版）" />
               </el-select>
@@ -398,7 +398,7 @@ onActivated(load);
             </div>
             <div class="opt-inline">
               <el-switch v-model="cfg!.schedule.daily" />
-              <el-time-picker v-model="cfg!.schedule.dailyTime" value-format="HH:mm" format="HH:mm" style="width:120px" :disabled="!cfg!.schedule.daily" placeholder="选择时间" />
+              <el-time-picker size="small" v-model="cfg!.schedule.dailyTime" value-format="HH:mm" format="HH:mm" style="width:120px" :disabled="!cfg!.schedule.daily" placeholder="选择时间" />
             </div>
           </div>
           <div class="opt-row" style="padding-bottom:2px">
@@ -437,7 +437,7 @@ onActivated(load);
               <div class="opt-title" style="color:var(--danger)">清空回收站</div>
               <div class="help">立即永久删除 <span class="mono">.trash\</span> 内的全部历史版本，不可恢复。</div>
             </div>
-            <el-button type="danger" plain @click="purgeAll"><i class="ph ph-trash"></i>清空</el-button>
+            <el-button size="small" type="danger" plain @click="purgeAll"><i class="ph ph-trash"></i>清空</el-button>
           </div>
         </div>
       </div>
@@ -447,6 +447,15 @@ onActivated(load);
 
 <style scoped>
 .mono-in :deep(.el-input__inner) { font-family: var(--font-mono); font-size: 12px; }
+
+/* 统一 el 控件圆角：Element Plus 默认 4px，项目统一 8px，不然和自定义控件直角圆角混搭 */
+:deep(.el-button),
+:deep(.el-input__wrapper),
+:deep(.el-select__wrapper),
+:deep(.el-input-number),
+:deep(.el-input-number .el-input__wrapper),
+:deep(.el-date-editor),
+:deep(.el-date-editor .el-input__wrapper) { border-radius: var(--radius-ctl); }
 
 /* 左右两栏内容高度不同，顶对齐即可 */
 .top-grid { align-items: start; }
