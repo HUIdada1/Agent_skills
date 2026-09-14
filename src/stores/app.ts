@@ -1,6 +1,6 @@
-// 全局状态：当前页面 / 双主题 / 版本。没用 vue-router，切页就靠这个
+// 全局状态：当前页面 / 双主题 / 版本 / 工具适配器显示名。没用 vue-router，切页就靠这个
 import { defineStore } from "pinia";
-import { getAppVersion, setTitlebarTheme } from "../api/ipc";
+import { getAppVersion, setTitlebarTheme, listTools, type ToolRow } from "../api/ipc";
 
 export type PageName =
   | "dashboard"
@@ -40,6 +40,7 @@ export const useAppStore = defineStore("app", {
     skillDetailName: "", // 进详情页时带上技能名
     helpOpen: false,     // 全局帮助对话框
     helpSection: "",     // 打开时定位到的帮助小节 id
+    toolMeta: [] as ToolRow[], // 工具适配器显示名/图标的唯一来源，别处不许再硬编码
   }),
   actions: {
     applyTheme() {
@@ -76,6 +77,19 @@ export const useAppStore = defineStore("app", {
       } catch {
         this.version = "";
       }
+      this.toolMeta = (await listTools().catch(() => [])) || [];
+    },
+    // 设置页保存完工具配置后调用，立即刷新全站的工具显示名
+    async refreshTools() {
+      this.toolMeta = (await listTools().catch(() => [])) || [];
+    },
+    toolName(id: string): string {
+      const t = this.toolMeta.find((x) => x.id === id);
+      return t?.name || id;
+    },
+    toolIcon(id: string): string {
+      const t = this.toolMeta.find((x) => x.id === id);
+      return t?.icon || "ph-folder-open";
     },
   },
 });

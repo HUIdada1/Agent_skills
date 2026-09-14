@@ -135,6 +135,14 @@ function register({ ipcMain }) {
   }));
 
   ipcMain.handle("list_tools", handle(() => adapter.listTools(C())));
+  // 电脑扫描发现：只读探测第三方 agent，命中列表给设置页一键添加
+  ipcMain.handle("probe_agents", handle(() => adapter.probeAgents(C())));
+  // 删除自定义工具适配器：不带 confirm 只干跑报影响，带 confirm 才摘挂载删配置
+  ipcMain.handle("remove_tool", handle(({ id, confirm: doIt }) => {
+    const r = syncer.removeCustomTool(C(), String(id || ""), !!doIt);
+    if (r.ok && doIt) cfg = null; // 配置已删条目，内存快照作废
+    return r;
+  }));
   ipcMain.handle("get_overview", handle(() => {
     const survey = syncer.survey(C());
     const conflicts = syncer.loadConflicts().items.filter((x) => !x.resolved);

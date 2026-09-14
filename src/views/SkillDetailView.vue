@@ -52,19 +52,6 @@ const frontmatter = computed(() => {
 // 工具自带的系统技能：只读展示，不给收纳引导
 const isSystemSkill = computed(() => (detail.value?.sources || []).some((s) => s.origin === "system"));
 
-const toolNames: Record<string, string> = {
-  zcode: "ZCode",
-  codex: "Codex CLI",
-  claude: "Claude Code",
-  antigravity: "Antigravity",
-  agents: "通用 ~/.agents",
-  custom: "自定义目录",
-};
-
-function toolName(id: string) {
-  return toolNames[id] || id;
-}
-
 function mountedAll(): boolean {
   const mounts = detail.value?.manifest?.mounts || [];
   return mounts.length > 0 && mounts.every((m) => m.enabled);
@@ -167,7 +154,7 @@ onMounted(load);
             </thead>
             <tbody>
               <tr v-for="m in detail.manifest.mounts" :key="m.tool + m.path">
-                <td class="strong">{{ toolName(m.tool) }}</td>
+                <td class="strong">{{ app.toolName(m.tool) }}</td>
                 <td class="mono" style="font-size:11px">{{ m.path }}</td>
                 <td><span class="badge info">{{ m.type === "junction" ? "Junction" : "复制" }}</span></td>
                 <td>
@@ -252,7 +239,7 @@ onMounted(load);
             <div class="tool-row" v-for="(s, i) in detail.sources || []" :key="i">
               <div class="tool-icon"><i class="ph ph-git-branch"></i></div>
               <div class="t-main">
-                <div class="t-name">{{ toolName(s.tool) }}</div>
+                <div class="t-name">{{ app.toolName(s.tool) }}</div>
                 <div class="t-path">{{ s.name }}</div>
               </div>
             </div>

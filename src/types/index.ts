@@ -99,7 +99,7 @@ export type ConflictDiff = {
 };
 
 export type AppConfig = {
-  tools: Record<string, { enabled: boolean; paths: string[] }>;
+  tools: Record<string, { enabled: boolean; paths: string[]; name?: string; icon?: string }>;
   customDirs: string[];
   mountMode: "junction" | "copy";
   l3: { enabled: boolean; threshold: number };
@@ -123,7 +123,27 @@ export type AppConfig = {
   };
 };
 
-export type ToolRow = { id: string; name: string; icon: string; enabled: boolean; dir: string | null; candidatePaths: string[] };
+export type ToolRow = {
+  id: string;
+  name: string;
+  icon: string;
+  builtin: boolean;
+  deletable: boolean;
+  enabled: boolean;
+  dir: string | null;
+  candidatePaths: string[];
+};
+
+// 电脑扫描发现的第三方 agent：用户确认了才落配置（suggestId 已避开现有工具 id）
+export type ProbeRow = { suggestId: string; name: string; icon: string; hitDirs: string[]; skillCount: number };
+
+// 删除自定义工具前的干跑结果：有未裁决冲突必须先裁决
+export type RemoveToolPlan = {
+  builtin: boolean;
+  mounts: { skill: string; path: string }[];
+  sourceCount: number;
+  openConflicts: number;
+};
 
 // 孤儿目录：工具目录里真实存在、但中央仓库 manifest 还没记录的技能目录
 export type OrphanRow = { name: string; tool: string; dir: string; mtimeMs?: number };

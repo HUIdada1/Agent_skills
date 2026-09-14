@@ -21,6 +21,8 @@ const ALLOWED_COMMANDS = new Set([
   "webdav_logs",
   "webdav_devices",
   "list_tools",
+  "probe_agents",
+  "remove_tool",
   "get_overview",
   "list_skills",
   "get_skill",

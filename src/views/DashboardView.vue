@@ -3,25 +3,12 @@
 import { ref, onMounted } from "vue";
 import { getOverview, type Overview } from "../api/ipc";
 import { useAppStore } from "../stores/app";
-import { fmtTime, toolName } from "../utils/format";
+import { fmtTime } from "../utils/format";
 
 const app = useAppStore();
 const data = ref<Overview | null>(null);
 const loading = ref(true);
 const errMsg = ref("");
-
-const TOOL_ICONS: Record<string, string> = {
-  zcode: "ph-terminal-window",
-  codex: "ph-command",
-  claude: "ph-sparkle",
-  antigravity: "ph-airplane-tilt",
-  agents: "ph-package",
-  custom: "ph-folder-open",
-};
-
-function toolIcon(id: string) {
-  return TOOL_ICONS[id] || "ph-folder-open";
-}
 
 function mountOkCount(toolId: string, o: Overview) {
   return o.mountHealth.filter((m) => m.tool === toolId && m.valid).length;
@@ -96,7 +83,7 @@ onMounted(load);
         <p class="desc">每个工具的全局技能目录。括号内为可收纳的技能数（工具自带目录不计入），含 Junction 指入。</p>
         <div class="panel" style="padding: 6px 18px;">
           <div class="tool-row" v-for="t in data.tools" :key="t.id">
-            <div class="tool-icon"><i class="ph" :class="toolIcon(t.id)"></i></div>
+            <div class="tool-icon"><i class="ph" :class="app.toolIcon(t.id)"></i></div>
             <div class="t-main">
               <div class="t-name">{{ t.name }}</div>
               <div class="t-path">{{ t.dir }}</div>
@@ -108,7 +95,7 @@ onMounted(load);
           <div class="tool-row" v-if="!data.tools.length">
             <div class="t-main">
               <div class="t-name muted">未发现任何工具技能目录</div>
-              <div class="t-path">可在设置中添加候选路径或自定义目录</div>
+              <div class="t-path">可在设置中调整候选路径，或扫描发现 / 手动新增工具适配器</div>
             </div>
           </div>
         </div>
@@ -159,7 +146,7 @@ onMounted(load);
               <div class="tool-icon"><i class="ph ph-folder-plus"></i></div>
               <div class="t-main">
                 <div class="t-name">陌生目录：{{ o.name }}</div>
-                <div class="t-path">存在于 {{ toolName(o.tool) }}{{ o.mtimeMs ? " · 最后修改 " + fmtTime(o.mtimeMs) : "" }}，待确认收纳</div>
+                <div class="t-path">存在于 {{ app.toolName(o.tool) }}{{ o.mtimeMs ? " · 最后修改 " + fmtTime(o.mtimeMs) : "" }}，待确认收纳</div>
               </div>
               <button class="btn btn-sm" @click="app.go('sync')"><i class="ph ph-arrow-right"></i>查看</button>
             </div>

@@ -390,6 +390,51 @@ function toggleMount(skill, toolId, enable, cfg) {
   return { ok: true, message: enable ? "已启用" : "已停用" };
 }
 
+// 删除自定义工具适配器：先干跑报影响，confirm 后才动。挂载只摘链接，来源记录保留为历史档案。
+// 有未裁决冲突一律拒绝——冲突裁决需要那个工具的目录还在
+function removeCustomTool(cfg, id, doIt) {
+  const entry = (cfg.tools || {})[id];
+  if (!entry) return { ok: false, message: "工具不存在" };
+  if (adapter.isBuiltinId(id)) return { ok: false, message: "内置工具不能删除，只能停用" };
+  const manifest = hub.loadManifest();
+  const store = loadConflicts();
+  const mounts = [];
+  let sourceCount = 0;
+  for (const [name, s] of Object.entries(manifest.skills || {})) {
+    for (const mt of s.mounts || []) {
+      if (mt.tool === id && mt.enabled !== false) mounts.push({ skill: name, path: mt.path });
+    }
+    sourceCount += (s.sources || []).filter((x) => x.tool === id).length;
+  }
+  const openConflicts = store.items.filter((x) => !x.resolved && x.toolId === id).length;
+  if (!doIt) return { ok: true, builtin: false, mounts, sourceCount, openConflicts };
+  if (openConflicts > 0) return { ok: false, message: `该工具还有 ${openConflicts} 条未裁决冲突，请先去「去重与冲突」页处理` };
+  let unmounted = 0;
+  for (const mt of mounts) {
+    const r = mounter.unmount(mt.path); // 只删链接，绝不碰真实目录
+    if (!r.ok) return { ok: false, message: `摘除 ${mt.path} 失败：${r.message}` };
+    unmounted++;
+  }
+  if (unmounted || sourceCount) {
+    for (const [name, s] of Object.entries(manifest.skills || {})) {
+      const before = (s.mounts || []).length;
+      s.mounts = (s.mounts || []).filter((m) => m.tool !== id);
+      const hasSource = (s.sources || []).some((x) => x.tool === id);
+      const dropped = before - s.mounts.length;
+      if (dropped || hasSource) {
+        const parts = [`移除工具适配器 ${id}（${entry.name || id}）`];
+        if (dropped) parts.push(`摘除挂载 ${dropped} 处`);
+        if (hasSource) parts.push("该工具来源记录保留为历史");
+        s.mergeHistory.push({ at: new Date().toISOString(), action: "tool-removed", detail: parts.join("，") });
+      }
+    }
+    hub.saveManifest(manifest);
+  }
+  delete cfg.tools[id];
+  config.saveConfig(cfg);
+  return { ok: true, message: `已删除工具 ${id}${unmounted ? `，摘除挂载 ${unmounted} 处` : ""}`, unmounted };
+}
+
 function repairMounts(cfg) {
   const m = hub.loadManifest();
   const rows = mounter.verifyAll(m);
@@ -409,4 +454,4 @@ function repairMounts(cfg) {
   return { repaired, details };
 }
 
-module.exports = { survey, librarySkills, planSync, executeSync, loadConflicts, saveConflicts, upsertConflict, resolveContentConflict, resolveNormConflict, toggleMount, repairMounts };
+module.exports = { survey, librarySkills, planSync, executeSync, loadConflicts, saveConflicts, upsertConflict, resolveContentConflict, resolveNormConflict, toggleMount, removeCustomTool, repairMounts };

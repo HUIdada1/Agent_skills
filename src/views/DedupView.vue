@@ -111,7 +111,7 @@ onMounted(load);
       <p class="desc">{{ active.detail }}</p>
       <div class="diff-wrap" v-if="diffLines">
         <div class="diff-col">
-          <div class="d-head"><span>{{ diff?.left.label }} · {{ active.toolId }}</span><span class="mono" style="color:var(--text-3)">{{ diffStatsRow.del }} 处差异</span></div>
+          <div class="d-head"><span>{{ diff?.left.label }} · {{ app.toolName(active.toolId || "") }}</span><span class="mono" style="color:var(--text-3)">{{ diffStatsRow.del }} 处差异</span></div>
           <div class="d-body">
             <span v-for="(l, i) in diffLines.left" :key="i" :class="l.kind" style="display:block">{{ l.text || " " }}</span>
           </div>
@@ -127,7 +127,7 @@ onMounted(load);
 
       <div class="row mt-16" style="gap:10px">
         <button class="btn btn-primary" @click="resolve('keepHub')"><i class="ph ph-shield-check"></i>保留中央版</button>
-        <button class="btn" @click="resolve('keepTool')"><i class="ph ph-arrow-u-up-left"></i>保留{{ active.toolId }}版</button>
+        <button class="btn" @click="resolve('keepTool')"><i class="ph ph-arrow-u-up-left"></i>保留{{ app.toolName(active.toolId || "") }}版</button>
         <button class="btn" @click="resolve('keepBoth')"><i class="ph ph-copy"></i>双保留改名</button>
         <button class="btn" @click="dismiss"><i class="ph ph-x"></i>忽略</button>
         <span class="muted small" style="margin-left:auto">落选版本将移入 <span class="mono">.trash\</span>，保留 {{ cfg?.trashDays ?? 7 }} 天可还原</span>
@@ -183,7 +183,7 @@ onMounted(load);
           <tbody>
             <tr v-for="(d, i) in plan.dedup.duplicates" :key="i">
               <td class="strong mono">{{ d.kept.name }}</td>
-              <td class="mono">{{ d.removed.tool }}:{{ d.removed.name }}</td>
+              <td class="mono">{{ app.toolName(d.removed.tool) }}:{{ d.removed.name }}</td>
               <td><span class="badge ok">{{ d.rule }}</span></td>
               <td class="muted small">{{ d.basis }}</td>
             </tr>

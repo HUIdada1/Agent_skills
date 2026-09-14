@@ -1,13 +1,13 @@
 // 主进程通信封装。有 Electron 桥就走桥，纯浏览器预览时返回 null
 import type {
   AppConfig, SkillRow, SkillDetail, Overview, SyncPlan, SyncResult, ConflictItem, ConflictDiff,
-  ReportRow, ToolRow, TrashRow, UpdateStatus, UpdateEvent,
+  ReportRow, ToolRow, TrashRow, UpdateStatus, UpdateEvent, ProbeRow, RemoveToolPlan,
   WebDavStatus, RemoteDevice, WebDavLog,
 } from "../types";
 
 export type {
   AppConfig, SkillRow, SkillDetail, Overview, SyncPlan, SyncResult, ConflictItem, ConflictDiff,
-  ReportRow, ToolRow, TrashRow, UpdateStatus, UpdateEvent,
+  ReportRow, ToolRow, TrashRow, UpdateStatus, UpdateEvent, ProbeRow, RemoveToolPlan,
   WebDavStatus, RemoteDevice, WebDavLog, WebDavEvent,
 } from "../types";
 
@@ -60,6 +60,9 @@ export const webdavLogs = () => call<WebDavLog[]>("webdav_logs");
 export const webdavDevices = () => call<{ devices: RemoteDevice[]; error?: string }>("webdav_devices");
 
 export const listTools = () => call<ToolRow[]>("list_tools");
+export const probeAgents = () => call<ProbeRow[]>("probe_agents");
+export const removeTool = (id: string, confirm?: boolean) =>
+  call<{ ok: boolean; message?: string; builtin?: boolean; mounts?: { skill: string; path: string }[]; sourceCount?: number; openConflicts?: number; unmounted?: number }>("remove_tool", { id, confirm: !!confirm });
 export const getOverview = () => call<Overview>("get_overview");
 export const listSkills = () => call<SkillRow[]>("list_skills");
 export const getSkill = (name: string) => call<SkillDetail | null>("get_skill", { name });

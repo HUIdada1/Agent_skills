@@ -148,7 +148,7 @@ onMounted(load);
         </div>
         <div class="s-desc">{{ s.description || "（无描述，建议补齐 SKILL.md 的 description 字段）" }}</div>
         <div class="s-meta">
-          <span class="src-badge" v-for="src in s.sources" :key="src.tool + (src.name || '')">{{ src.tool }}</span>
+          <span class="src-badge" v-for="src in s.sources" :key="src.tool + (src.name || '')">{{ app.toolName(src.tool) }}</span>
           <span v-if="s.version">v{{ s.version }}</span>
           <span v-if="s.health.length" style="color:var(--warn)">体检 {{ s.health.length }} 项提醒</span>
         </div>

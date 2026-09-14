@@ -112,7 +112,37 @@ function loadConfig() {
   return c;
 }
 
+// 保存前校验工具适配器：id 合法、自定义工具必须有名字、候选路径不许落进中央仓库（自己扫自己）
+function validateToolConfig(cfg) {
+  const { isBuiltinId, expandPath } = require("./adapter.cjs");
+  const hub = path.resolve(hubDir());
+  const errors = [];
+  const pathOk = (p) => {
+    if (typeof p !== "string" || !p.trim()) return true; // 空白交给探测层报"未命中"
+    const abs = expandPath(p).toLowerCase();
+    return abs !== hub.toLowerCase() && !abs.startsWith(hub.toLowerCase() + path.sep);
+  };
+  for (const [id, t] of Object.entries(cfg.tools || {})) {
+    if (!isBuiltinId(id) && !/^[a-z0-9][a-z0-9_-]{0,31}$/.test(id)) errors.push(`工具 id "${id}" 不合法（小写字母数字开头，可含 -_，最长 32 位）`);
+    if (!t || typeof t !== "object" || Array.isArray(t)) { errors.push(`工具 ${id} 的配置损坏`); continue; }
+    if (!isBuiltinId(id) && !String(t.name || "").trim()) errors.push(`工具 ${id} 缺显示名`);
+    for (const p of t.paths || []) {
+      if (!pathOk(p)) errors.push(`工具 ${id} 的候选路径指向中央仓库内部，会自己扫自己`);
+    }
+  }
+  for (const p of cfg.customDirs || []) {
+    if (!pathOk(p)) errors.push(`自定义目录 ${p} 指向中央仓库内部，会自己扫自己`);
+  }
+  return errors;
+}
+
 function saveConfig(cfg) {
+  const errors = validateToolConfig(cfg);
+  if (errors.length) {
+    const e = new Error("配置校验未通过：" + errors.slice(0, 3).join("；"));
+    e.toolErrors = errors;
+    throw e;
+  }
   ensureHub();
   const disk = JSON.parse(JSON.stringify(cfg));
   disk.webdav.password = encryptSecret(disk.webdav.password);

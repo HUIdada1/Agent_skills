@@ -24,17 +24,3 @@ export function fmtDate(iso: string | number | null | undefined): string {
 export function shortHash(h: string | undefined): string {
   return h ? h.slice(0, 8) + "…" : "—";
 }
-
-// 工具 id 到显示名，与 electron/backend/adapter.cjs 的 BUILTIN_TOOLS 保持一致
-const TOOL_NAMES: Record<string, string> = {
-  zcode: "ZCode",
-  codex: "Codex CLI",
-  claude: "Claude Code",
-  antigravity: "Antigravity",
-  agents: "通用 ~/.agents",
-  custom: "自定义目录",
-};
-
-export function toolName(id: string): string {
-  return TOOL_NAMES[id] || id;
-}

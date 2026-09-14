@@ -1,10 +1,12 @@
 <script setup lang="ts">
-// 设置：工具适配器 / 同步与去重 / 中央仓库与更新 / 后台与调度 / 回收站 / 危险区
+// 设置：工具适配器（内置+自定义+扫描发现）/ 同步与去重 / 中央仓库与更新 / 后台与调度 / 回收站 / 危险区
 import { ref, onActivated } from "vue";
 import { ElMessageBox } from "element-plus";
-import { loadConfig, saveConfig, listTools, browseDir, trashList, trashRestore, trashPurge, openDataDir, getDataDir, getIsPortable, type AppConfig, type ToolRow, type TrashRow } from "../api/ipc";
+import { loadConfig, saveConfig, listTools, probeAgents, removeTool, browseDir, trashList, trashRestore, trashPurge, openDataDir, getDataDir, getIsPortable, type AppConfig, type ToolRow, type TrashRow, type ProbeRow } from "../api/ipc";
 import { fmtTime, fmtSize } from "../utils/format";
+import { useAppStore } from "../stores/app";
 
+const app = useAppStore();
 const cfg = ref<AppConfig | null>(null);
 const tools = ref<ToolRow[]>([]);
 const trash = ref<TrashRow[]>([]);
@@ -13,10 +15,34 @@ const actionMsg = ref("");
 const saving = ref(false);
 const portable = ref(false);
 
+// ---- 工具适配器：扫描发现 / 手动新增 ----
+const ICON_CHOICES = ["ph-robot", "ph-command", "ph-terminal-window", "ph-sparkle", "ph-code", "ph-cube", "ph-brain", "ph-package", "ph-folder-open", "ph-airplane-tilt", "ph-circle-wavy-question"];
+const iconLabel = (i: string) => i.replace("ph-", "");
+
+const probeOpen = ref(false);
+const probeLoading = ref(false);
+const probed = ref<ProbeRow[]>([]);
+
+const manualOpen = ref(false);
+const manual = ref({ name: "", id: "", icon: "ph-robot", path: "" });
+const idTouched = ref(false); // 用户手动改过 id 后，改名字就不再覆盖它
+
+// 名字改了就联动生成 id，除非用户已经自己改过 id
+function onNameInput() {
+  if (!idTouched.value) manual.value.id = slugId(manual.value.name);
+}
+
 async function load() {
   try {
     cfg.value = await loadConfig();
     tools.value = (await listTools()) || [];
+    // 旧配置里工具条目可能没存 name/icon，按后端解析结果补齐，让卡片显示注册表默认值
+    for (const t of tools.value) {
+      const tc = cfg.value?.tools?.[t.id];
+      if (!tc) continue;
+      if (!tc.name) tc.name = t.name;
+      if (!tc.icon) tc.icon = t.icon;
+    }
     trash.value = (await trashList()) || [];
     portable.value = !!(await getIsPortable());
     const dir = await getDataDir();
@@ -31,12 +57,102 @@ async function save() {
   saving.value = true;
   try {
     const r = await saveConfig(cfg.value);
-    actionMsg.value = r?.ok ? "设置已保存，下次扫描生效" : r?.message || "保存失败";
+    actionMsg.value = r?.ok ? "设置已保存，同步中心重新扫描后生效" : r?.message || "保存失败";
+    if (r?.ok) {
+      tools.value = (await listTools()) || [];
+      await app.refreshTools();
+    }
   } catch (e) {
     actionMsg.value = String((e as Error).message || e);
   } finally {
     saving.value = false;
   }
+}
+
+// 名称转 id：英文数字连字符保留，其余压成 -，给手动新增当默认值，用户可改
+function slugId(name: string): string {
+  const s = name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return /^[a-z0-9]/.test(s) ? s : "agent";
+}
+
+async function doProbe() {
+  probeLoading.value = true;
+  probed.value = [];
+  try {
+    probed.value = (await probeAgents()) || [];
+    probeOpen.value = true;
+    manualOpen.value = false;
+    actionMsg.value = probed.value.length ? `扫描到 ${probed.value.length} 个未注册的 agent 技能目录` : "没有发现未注册的 agent 技能目录";
+  } catch (e) {
+    actionMsg.value = String((e as Error).message || e);
+  } finally {
+    probeLoading.value = false;
+  }
+}
+
+function adopt(row: ProbeRow) {
+  if (!cfg.value) return;
+  let id = row.suggestId;
+  let n = 2;
+  while (cfg.value.tools[id]) id = `${row.suggestId}-${n++}`; // 理论不撞，防御一下
+  const paths = row.hitDirs.length ? [row.hitDirs[0]] : [""];
+  cfg.value.tools[id] = { name: row.name, icon: row.icon, enabled: true, paths };
+  tools.value.push({ id, name: row.name, icon: row.icon, builtin: false, deletable: true, enabled: true, dir: paths[0], candidatePaths: paths });
+  actionMsg.value = `已添加「${row.name}」，保存后生效`;
+}
+
+function openManual() {
+  manualOpen.value = !manualOpen.value;
+  probeOpen.value = false;
+  manual.value = { name: "", id: "", icon: "ph-robot", path: "" };
+  idTouched.value = false;
+}
+
+async function browseManualPath() {
+  const r = await browseDir().catch(() => null);
+  if (r?.ok && r.path) manual.value.path = r.path;
+}
+
+function submitManual() {
+  if (!cfg.value) return;
+  const name = manual.value.name.trim();
+  const id = (manual.value.id.trim() || slugId(name)).toLowerCase();
+  if (!name) { actionMsg.value = "先给工具起个名字"; return; }
+  if (!/^[a-z0-9][a-z0-9_-]{0,31}$/.test(id)) { actionMsg.value = "id 只能用小写字母数字开头，可含 -_，最长 32 位"; return; }
+  if (cfg.value.tools[id]) { actionMsg.value = `id「${id}」已被占用，换一个`; return; }
+  const paths = manual.value.path.trim() ? [manual.value.path.trim()] : [""];
+  cfg.value.tools[id] = { name, icon: manual.value.icon, enabled: true, paths };
+  tools.value.push({ id, name, icon: manual.value.icon, builtin: false, deletable: true, enabled: true, dir: paths[0], candidatePaths: paths });
+  manualOpen.value = false;
+  actionMsg.value = `已添加「${name}」，保存后生效`;
+}
+
+async function startRemove(t: ToolRow) {
+  const plan = await removeTool(t.id).catch(() => null);
+  if (!plan || plan.ok === false) { actionMsg.value = plan?.message || "删除失败，请重试"; return; }
+  if (plan.openConflicts) {
+    await ElMessageBox.alert(`该工具还有 ${plan.openConflicts} 条未裁决冲突，请先去「去重与冲突」页处理，再回来删除。`, "暂不能删除", { confirmButtonText: "知道了", type: "warning" });
+    return;
+  }
+  const mounts = plan.mounts || [];
+  const src = plan.sourceCount || 0;
+  let text = `删除工具适配器「${t.name}」？`;
+  if (mounts.length) text += `\n将摘除 ${mounts.length} 处挂载（只删链接，技能与目录都不动）。`;
+  if (src) text += `\n${src} 条来源记录会保留为历史档案，显示为原 id。`;
+  try {
+    await ElMessageBox.confirm(text, "删除工具适配器", { confirmButtonText: "删除", cancelButtonText: "取消", type: "warning" });
+  } catch {
+    return; // 用户点了取消
+  }
+  const r = await removeTool(t.id, true).catch(() => null);
+  actionMsg.value = r?.ok ? r.message || "已删除" : r?.message || "删除失败，请重试";
+  await load();
+  await app.refreshTools();
 }
 
 async function browseToolPath(toolId: string, idx: number) {
@@ -95,12 +211,28 @@ onActivated(load);
     <template v-if="cfg">
       <div class="section">
         <h2>工具适配器</h2>
-        <p class="desc">每个工具的候选技能目录（按顺序探测，取第一个存在的）。Antigravity 等路径漂移工具可配置多个候选。</p>
+        <p class="desc">内置五个常用 agent，也可以扫描电脑自动发现其他 agent，或手动新增适配器（名字 + 候选技能目录）。候选路径按顺序探测，取第一个存在的。</p>
         <div class="panel">
           <div class="tool-block" v-for="t in tools" :key="t.id">
             <div class="tool-head">
-              <span class="tool-name">{{ t.name }}</span>
-              <el-switch v-model="cfg!.tools[t.id]!.enabled" />
+              <div class="tool-title">
+                <el-select v-model="cfg!.tools[t.id]!.icon" class="icon-select" size="small">
+                  <template #prefix><i class="ph" :class="cfg!.tools[t.id]!.icon"></i></template>
+                  <el-option v-for="i in ICON_CHOICES" :key="i" :value="i" :label="iconLabel(i)">
+                    <i class="ph" :class="i" style="margin-right:6px"></i><span class="small">{{ iconLabel(i) }}</span>
+                  </el-option>
+                </el-select>
+                <el-input v-model="cfg!.tools[t.id]!.name" class="name-in" size="small" placeholder="显示名" />
+                <span class="tool-id mono">{{ t.id }}</span>
+                <span class="badge mute" v-if="t.builtin" title="内置工具不可删除，只能停用">内置</span>
+              </div>
+              <div class="row" style="gap:10px">
+                <label class="row" style="gap:8px; cursor:pointer">
+                  <span class="small" style="color:var(--text-2)">启用</span>
+                  <el-switch v-model="cfg!.tools[t.id]!.enabled" />
+                </label>
+                <el-button size="small" type="danger" text v-if="t.deletable" @click="startRemove(t)"><i class="ph ph-trash"></i>删除</el-button>
+              </div>
             </div>
             <div class="path-row" v-for="(p, i) in cfg!.tools[t.id]!.paths" :key="i">
               <el-input v-model="cfg!.tools[t.id]!.paths[i]" placeholder="候选路径（~ 开头或绝对路径）" class="mono-in" />
@@ -114,11 +246,66 @@ onActivated(load);
             </div>
             <div class="help" v-if="t.id === 'antigravity'">Antigravity 各版本全局技能路径有漂移（旧版 .gemini\antigravity\skills，新版 .gemini\config\skills），多候选按顺序取第一个命中项。</div>
           </div>
+
+          <div class="probe-area">
+            <div class="row" style="gap:10px">
+              <el-button :loading="probeLoading" @click="doProbe"><i class="ph ph-radar"></i>扫描电脑发现</el-button>
+              <el-button @click="openManual"><i class="ph ph-plus"></i>手动新增适配器</el-button>
+              <span class="small muted" style="align-self:center">探测只读不写配置，你点添加才会进列表。</span>
+            </div>
+
+            <!-- 发现结果：点添加即进工具列表，保存后生效 -->
+            <div class="probe-panel" v-if="probeOpen">
+              <div class="muted small" v-if="!probed.length">没有发现未注册的 agent 技能目录。装过 Cursor、Qoder、Roo Code 等但没扫到？用「手动新增」直接填目录。</div>
+              <div class="tool-row" v-for="r in probed" :key="r.suggestId">
+                <div class="tool-icon"><i class="ph" :class="r.icon"></i></div>
+                <div class="t-main">
+                  <div class="t-name">{{ r.name }}</div>
+                  <div class="t-path">{{ r.hitDirs.join(" · ") }}{{ r.skillCount ? `（${r.skillCount} 个技能目录）` : "（空目录）" }}</div>
+                </div>
+                <el-button size="small" type="primary" text @click="adopt(r)"><i class="ph ph-plus"></i>添加</el-button>
+              </div>
+            </div>
+
+            <!-- 手动新增：名字 + id + 图标 + 首个路径 -->
+            <div class="probe-panel" v-if="manualOpen">
+              <div class="field">
+                <label>显示名</label>
+                <el-input v-model="manual.name" placeholder="例如 Cursor" style="max-width:360px" @input="onNameInput" />
+              </div>
+              <div class="field">
+                <label>id（引用键，创建后不可改，用于来源与挂载记录）</label>
+                <el-input v-model="manual.id" placeholder="例如 cursor" class="mono-in" style="max-width:360px" @input="idTouched = true" />
+              </div>
+              <div class="field">
+                <label>图标</label>
+                <el-select v-model="manual.icon" class="icon-select">
+                  <template #prefix><i class="ph" :class="manual.icon"></i></template>
+                  <el-option v-for="i in ICON_CHOICES" :key="i" :value="i" :label="iconLabel(i)">
+                    <i class="ph" :class="i" style="margin-right:6px"></i><span class="small">{{ iconLabel(i) }}</span>
+                  </el-option>
+                </el-select>
+              </div>
+              <div class="field" style="margin-bottom:4px">
+                <label>技能目录（可留空，保存后回到上面卡片再补候选路径）</label>
+                <div class="path-row">
+                  <el-input v-model="manual.path" placeholder="~/.cursor/skills 或绝对路径" class="mono-in" />
+                  <el-button @click="browseManualPath" title="浏览"><i class="ph ph-folder-open"></i></el-button>
+                </div>
+              </div>
+              <div class="row" style="gap:10px">
+                <el-button type="primary" size="small" @click="submitManual"><i class="ph ph-check"></i>添加</el-button>
+                <el-button size="small" @click="manualOpen = false">取消</el-button>
+              </div>
+            </div>
+          </div>
+
           <hr class="divider" />
           <div class="tool-block" style="border-top:none; padding-top:0">
             <div class="tool-head">
               <span class="tool-name">自定义目录</span>
             </div>
+            <p class="help" style="margin-bottom:10px">没有 agent 身份的裸目录。若它是某个 agent 的技能目录，建议用上面的「手动新增适配器」挂个名字，来源归属和挂载状态会更清楚。</p>
             <div class="path-row" v-for="(p, i) in cfg!.customDirs" :key="i">
               <el-input v-model="cfg!.customDirs[i]" class="mono-in" />
               <el-button @click="browseToolPath('custom', i)" title="浏览"><i class="ph ph-folder-open"></i></el-button>
@@ -304,13 +491,28 @@ onActivated(load);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   margin-bottom: 10px;
 }
+.tool-title { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
 .tool-name { font-weight: 600; font-size: 13.5px; }
+.tool-id { color: var(--text-3); font-size: 11px; flex: none; }
+.name-in { max-width: 220px; }
+.icon-select { width: 150px; flex: none; }
+.icon-select :deep(.el-select__prefix) { left: 10px; display: flex; align-items: center; }
+.icon-select :deep(.el-select__placeholder),
+.icon-select :deep(.el-select__selected-item) { padding-left: 22px; }
 .path-row { display: flex; gap: 8px; margin-bottom: 8px; }
 .path-row :deep(.el-input) { flex: 1; }
 .hit-line { margin: 8px 0; }
 .add-line { margin-top: 4px; }
+
+/* 发现/新增面板：工具区底部的一组入口 + 内联结果 */
+.probe-area { border-top: 1px solid var(--border-soft); padding: 16px 0 4px; }
+.probe-panel { margin-top: 14px; padding: 14px 16px; background: var(--panel-2); border: 1px solid var(--border-soft); border-radius: 10px; }
+.probe-panel .tool-row { padding: 10px 0; }
+.probe-panel .tool-row + .tool-row { border-top: 1px solid var(--border-soft); }
+.probe-panel .field { margin-bottom: 12px; }
 
 /* 挂载模式：两张可选卡片 */
 .mount-radio {

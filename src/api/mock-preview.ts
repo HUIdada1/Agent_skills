@@ -12,6 +12,7 @@ const CONFIG = {
     claude: { enabled: true, paths: ["~/.claude/skills"] },
     antigravity: { enabled: true, paths: ["~/.gemini/antigravity/skills", "~/.gemini/config/skills"] },
     agents: { enabled: false, paths: ["~/.agents/skills"] },
+    cursor: { name: "Cursor", icon: "ph-robot", enabled: true, paths: ["C:\\Users\\demo\\.cursor\\skills"] },
   },
   customDirs: ["D:\\我的技能库"],
   mountMode: "junction" as const,
@@ -30,11 +31,17 @@ const CONFIG = {
 };
 
 const TOOLS = [
-  { id: "zcode", name: "ZCode", icon: "", enabled: true, dir: "C:\\Users\\demo\\.zcode\\skills", candidatePaths: [] },
-  { id: "codex", name: "Codex", icon: "", enabled: true, dir: "C:\\Users\\demo\\.codex\\skills", candidatePaths: [] },
-  { id: "claude", name: "Claude", icon: "", enabled: true, dir: "C:\\Users\\demo\\.claude\\skills", candidatePaths: [] },
-  { id: "antigravity", name: "Antigravity", icon: "", enabled: false, dir: null, candidatePaths: [] },
-  { id: "agents", name: "Agents", icon: "", enabled: false, dir: null, candidatePaths: [] },
+  { id: "zcode", name: "ZCode", icon: "ph-terminal-window", builtin: true, deletable: false, enabled: true, dir: "C:\\Users\\demo\\.zcode\\skills", candidatePaths: ["~/.zcode/skills"] },
+  { id: "codex", name: "Codex CLI", icon: "ph-command", builtin: true, deletable: false, enabled: true, dir: "C:\\Users\\demo\\.codex\\skills", candidatePaths: ["~/.codex/skills"] },
+  { id: "claude", name: "Claude Code", icon: "ph-sparkle", builtin: true, deletable: false, enabled: true, dir: "C:\\Users\\demo\\.claude\\skills", candidatePaths: ["~/.claude/skills"] },
+  { id: "antigravity", name: "Antigravity", icon: "ph-airplane-tilt", builtin: true, deletable: false, enabled: false, dir: null, candidatePaths: ["~/.gemini/antigravity/skills", "~/.gemini/config/skills"] },
+  { id: "agents", name: "通用 ~/.agents", icon: "ph-package", builtin: true, deletable: false, enabled: false, dir: null, candidatePaths: ["~/.agents/skills"] },
+  { id: "cursor", name: "Cursor", icon: "ph-robot", builtin: false, deletable: true, enabled: true, dir: "C:\\Users\\demo\\.cursor\\skills", candidatePaths: ["C:\\Users\\demo\\.cursor\\skills"] },
+];
+
+// 电脑扫描发现的假结果：Cursor 已注册被过滤，只剩 Qoder
+const PROBED = [
+  { suggestId: "qoder", name: "Qoder", icon: "ph-command", hitDirs: ["C:\\Users\\demo\\.qoder\\skills"], skillCount: 4 },
 ];
 
 // 样例技能覆盖五种状态：挂载启用 / 已停止 / 体检报错 / 体检警告 / 待收纳
@@ -82,7 +89,7 @@ const SKILLS = [
     name: "brandkit", skillName: "brandkit",
     description: "高端品牌套件生成：logo 系统、视觉世界与品牌规范板。",
     version: "", treeHash: "9b7e30", health: [], inManifest: false,
-    sources: [{ tool: "zcode" }],
+    sources: [{ tool: "zcode" }, { tool: "cursor" }],
     mounts: [],
     mtimeMs: NOW - 12 * 60000,
   },
@@ -152,6 +159,8 @@ export async function mockCall(cmd: string): Promise<unknown> {
     case "get_data_dir": return "C:\\Users\\demo\\.agent_skills";
     case "get_app_version": return APP_VERSION;
     case "list_tools": return TOOLS;
+    case "probe_agents": return PROBED;
+    case "remove_tool": return { ok: true, mounts: [{ skill: "brandkit", path: "C:\\Users\\demo\\.cursor\\skills\\brandkit" }], sourceCount: 1, openConflicts: 0 };
     case "list_skills": return SKILLS;
     case "webdav_status": return JSON.parse(JSON.stringify(WEBDAV_STATUS));
     case "webdav_logs": return WEBDAV_LOGS;
@@ -166,7 +175,9 @@ export async function mockCall(cmd: string): Promise<unknown> {
     case "get_overview":
       return {
         hubDir: "C:\\Users\\demo\\.agent_skills", skillCount: SKILLS.length, manifestCount: 4, sourceCount: 6,
-        l1Merged: 2, l2Conflicts: 0, tools: [], mountHealth: [],
+        l1Merged: 2, l2Conflicts: 0,
+        tools: TOOLS.filter((t) => t.enabled).map((t) => ({ id: t.id, name: t.name, dir: t.dir || "", skillCount: 6, mountCount: 2 })),
+        mountHealth: [],
         orphans: ORPHANS, pendingConflicts: [],
         recentReports: [], trashCount: TRASH.length,
       };
@@ -187,6 +198,14 @@ export async function mockCall(cmd: string): Promise<unknown> {
         ],
       };
     case "list_skills": return JSON.parse(JSON.stringify(SKILLS));
+    case "get_skill":
+      return {
+        manifest: null,
+        dir: "",
+        health: [],
+        skillMd: "---\nname: brandkit\ndescription: Premium brand-kit skill\n---\n\n# brandkit\n",
+        sources: [{ tool: "zcode", name: "brandkit" }, { tool: "cursor", name: "brandkit" }],
+      };
     case "list_conflicts": return [];
     default: return undefined; // 没造的命令走原来的 null 降级
   }

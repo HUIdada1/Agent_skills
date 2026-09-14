@@ -2,7 +2,7 @@
 // 同步中心：扫描预览 -> 确认执行 -> 看报告。界面只讲三件事：收什么、挂什么、有什么要裁决
 import { ref, computed, onMounted } from "vue";
 import { syncPlan, syncExecute, listReports, readReport, openReport, type SyncPlan, type SyncResult, type ReportRow } from "../api/ipc";
-import { fmtTime, toolName } from "../utils/format";
+import { fmtTime } from "../utils/format";
 import { useAppStore } from "../stores/app";
 
 const app = useAppStore();
@@ -35,9 +35,9 @@ const rows = computed<Row[]>(() => {
   const out: Row[] = [];
   for (const a of plan.value.actions) {
     if (a.type === "import") {
-      out.push({ skill: a.skill, kind: "import", source: (a.sources || []).map((s) => s.tool).join(" + "), detail: a.note });
+      out.push({ skill: a.skill, kind: "import", source: (a.sources || []).map((s) => app.toolName(s.tool)).join(" + "), detail: a.note });
     } else if (a.type === "mount") {
-      out.push({ skill: `${a.mountName || a.skill} @ ${a.toolId || ""}`, kind: a.replaceReal ? "mount" : "publish", source: "hub", detail: a.note });
+      out.push({ skill: `${a.mountName || a.skill} @ ${app.toolName(a.toolId || "")}`, kind: a.replaceReal ? "mount" : "publish", source: "hub", detail: a.note });
     } else if (a.type === "error") {
       out.push({ skill: a.skill, kind: "error", source: "hub", detail: a.note });
     }
@@ -188,7 +188,7 @@ onMounted(async () => {
           <tbody>
             <tr v-for="o in plan.orphans" :key="o.tool + o.name">
               <td class="strong mono">{{ o.name }}</td>
-              <td>{{ toolName(o.tool) }}</td>
+              <td>{{ app.toolName(o.tool) }}</td>
               <td class="muted">{{ o.mtimeMs ? fmtTime(o.mtimeMs) : "—" }}</td>
               <td><span class="badge info"><i class="ph ph-hand-tap"></i>你安装的</span></td>
             </tr>
