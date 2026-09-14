@@ -38,6 +38,43 @@ function upsertConflict(item) {
   }
 }
 
+// 技能库列表行：manifest 已收纳 + 扫描到的未收纳，两源合并去重。
+// 收纳后工具目录里只剩挂载链接，扫描层不产技能行，不并 manifest 这源库页就空了
+function librarySkills(survey) {
+  const rows = survey.dedup.unique.map((e) => ({
+    name: e.name,
+    skillName: e.skillName,
+    description: e.description,
+    version: e.version,
+    treeHash: e.treeHash,
+    health: e.health,
+    sources: e.sources,
+    inManifest: !!survey.manifest.skills[e.name],
+    mounts: survey.manifest.skills[e.name]?.mounts || [],
+    mtimeMs: e.mtimeMs,
+  }));
+  const seen = new Set(rows.map((r) => r.name));
+  for (const [name, entry] of Object.entries(survey.manifest.skills)) {
+    if (seen.has(name)) continue;
+    seen.add(name);
+    const dir = path.join(hub.skillsDir(), name);
+    const exists = fs.existsSync(dir);
+    rows.push({
+      name,
+      skillName: entry.skillName || name,
+      description: entry.description || "",
+      version: entry.version || "",
+      treeHash: entry.treeHash || "",
+      health: exists ? scanner.healthCheck(dir) : [{ level: "bad", text: "中央真身丢失，去回收站还原或删除该条目" }],
+      sources: (entry.sources || []).map((s) => ({ tool: s.tool, name: s.originalName })),
+      inManifest: true,
+      mounts: entry.mounts || [],
+      mtimeMs: exists ? fs.statSync(dir).mtimeMs : 0,
+    });
+  }
+  return rows;
+}
+
 // 全量扫描 + 去重，仪表盘/技能库/去重页共用
 function survey(cfg) {
   const scanned = scanner.scanAll(cfg, adapter);
@@ -98,6 +135,8 @@ function planSync(cfg) {
     }
     for (const t of targets) {
       if (isNew && importedSources.has(`${t.dir}\u0000${name}`)) continue;
+      // 用户在技能详情页手动停用的挂载不重新发布，不然开关形同虚设
+      if ((manifest.skills[name]?.mounts || []).some((m) => m.tool === t.id && m.enabled === false)) continue;
       const linkPath = path.join(t.dir, name);
       if (mounter.isLink(linkPath)) {
         if (mounter.pointsTo(linkPath, target) && fs.existsSync(linkPath)) {
@@ -159,16 +198,19 @@ function planSync(cfg) {
 }
 
 function executeSync(cfg, planResult) {
+  // 渲染层传来的 plan 只当占位：动文件前必须按当前磁盘状态重新规划，
+  // 照着过期/被动手脚的快照执行，轻则重复备份，重则往任意目录建挂载
+  const plan = planSync(cfg);
   const s = emptySummary();
   const result = { mode: "exec", summary: s, imports: [], merges: [], conflicts: [], mounts: [], manifestDiff: [] };
 
-  for (const a of planResult.actions) {
+  for (const a of plan.actions) {
     if (a.type === "import") {
       const r = hub.importSkill(a.entry);
       if (r.action === "imported") {
         s.imported++;
         result.imports.push({ name: a.skill, sources: a.sources.map((x) => x.tool + ":" + x.name).join(", "), action: "收纳", path: path.join(hub.skillsDir(), a.skill) });
-        result.manifestDiff.push(`+ skills/${a.skill} ← ${a.sources.map((x) => x.tool + ":" + x.name).join(", ")} (${a.entry.treeHash.slice(0, 12)})`);
+        result.manifestDiff.push(`+ skills/${a.skill} ← ${a.sources.map((x) => x.tool + ":" + x.name).join(", ")} (${(r.treeHash || a.entry.treeHash).slice(0, 12)})`);
       } else if (r.action === "source-added") {
         result.imports.push({ name: a.skill, sources: a.sources.map((x) => x.tool + ":" + x.name).join(", "), action: "补充来源", path: path.join(hub.skillsDir(), a.skill) });
       } else {
@@ -205,8 +247,14 @@ function doMount(cfg, a, result, s) {
       result.conflicts.push({ title: `${mountName} 挂载冲突`, detail: "工具目录已有同名真实目录，需人工裁决" });
       return;
     }
-    // 覆盖前再算一次哈希，内容不一致绝不静默替换
     const central = path.join(hub.skillsDir(), a.skill);
+    // 备份进回收站前先确认中央真身在：先 toTrash 再发现挂不了，技能就从工具目录消失了
+    if (!fs.existsSync(central)) {
+      s.conflicts++;
+      result.conflicts.push({ title: `${a.skill} 无法原位转挂载`, detail: "中央真身不存在：" + central });
+      return;
+    }
+    // 覆盖前再算一次哈希，内容不一致绝不静默替换
     if (scanner.treeHash(linkPath) !== scanner.treeHash(central)) {
       s.conflicts++;
       result.conflicts.push({ title: `${a.skill} 内容冲突`, detail: "工具版与中央版内容不同，需人工裁决" });
@@ -245,6 +293,7 @@ function resolveContentConflict(item, choice, cfg) {
   if (!fs.existsSync(toolCopy)) return { ok: false, message: "工具目录已不存在该技能" };
 
   if (choice === "keepHub") {
+    if (!fs.existsSync(central)) return { ok: false, message: "中央版已不存在，无法保留中央版" };
     const backed = hub.toTrash(toolCopy, skill);
     const r = mounter.mount(skill, dir, cfg.mountMode, skill);
     if (r.action === "mounted" || r.action === "already") {
@@ -360,4 +409,4 @@ function repairMounts(cfg) {
   return { repaired, details };
 }
 
-module.exports = { survey, planSync, executeSync, loadConflicts, saveConflicts, upsertConflict, resolveContentConflict, resolveNormConflict, toggleMount, repairMounts };
+module.exports = { survey, librarySkills, planSync, executeSync, loadConflicts, saveConflicts, upsertConflict, resolveContentConflict, resolveNormConflict, toggleMount, repairMounts };

@@ -36,7 +36,7 @@ async function pick(c: ConflictItem) {
   diffLines.value = null;
   // content 与 remote 冲突都走双栏 SKILL.md 对比（remote 的右侧是同步时暂存的远端版）
   if (c.kind === "content" || c.kind === "remote") {
-    const d = await getConflictDiff(c.id);
+    const d = await getConflictDiff(c.id).catch(() => null);
     diff.value = d;
     if (d) {
       diffLines.value = sideBySideDiff(d.left.md, d.right.md);
@@ -49,14 +49,14 @@ async function resolve(choice: string) {
   if (!active.value) return;
   const c = active.value;
   if (!confirm(`确认裁决：${c.title}\n落选版本将移入回收站（保留 ${cfg.value?.trashDays ?? 7} 天）。`)) return;
-  const r = await resolveConflict(c.id, choice);
+  const r = await resolveConflict(c.id, choice).catch(() => null);
   actionMsg.value = r?.message || (r?.ok ? "已裁决" : "裁决失败");
   await load();
 }
 
 async function dismiss() {
   if (!active.value) return;
-  await dismissConflict(active.value.id);
+  await dismissConflict(active.value.id).catch(() => {});
   actionMsg.value = "已忽略该冲突（下次同步若仍存在会重新出现）";
   await load();
 }

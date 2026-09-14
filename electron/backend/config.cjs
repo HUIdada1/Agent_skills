@@ -99,6 +99,8 @@ function loadConfig() {
     }
     disk = {};
   }
+  // 整个文件不是对象（null/数字/数组）也当没有，不然合并完必炸
+  if (!disk || typeof disk !== "object" || Array.isArray(disk)) disk = {};
   const c = mergeDeep(JSON.parse(JSON.stringify(DEFAULT_CONFIG)), disk);
   c.webdav.password = decryptSecret(c.webdav.password);
   // deviceId / 本机名惰性补全并写回，保证多次调用稳定
@@ -124,7 +126,8 @@ function mergeDeep(base, over) {
   for (const k of Object.keys(over)) {
     if (base && typeof base[k] === "object" && !Array.isArray(base[k]) && over[k] && typeof over[k] === "object" && !Array.isArray(over[k])) {
       out[k] = mergeDeep(base[k], over[k]);
-    } else if (over[k] !== undefined) {
+    } else if (over[k] !== undefined && over[k] !== null) {
+      // null 一律不收：磁盘上 webdav:null 这类值会把必填子对象打穿，读配置直接崩
       out[k] = over[k];
     }
   }

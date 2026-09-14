@@ -26,7 +26,7 @@ async function load() {
 
 async function doToggleMount(tool: string, enable: boolean) {
   if (!detail.value?.manifest) return;
-  const r = await toggleMount(detail.value.manifest.name, tool, enable);
+  const r = await toggleMount(detail.value.manifest.name, tool, enable).catch(() => null);
   actionMsg.value = r?.ok ? r.message : r?.message || "操作失败";
   await load();
 }
@@ -35,7 +35,7 @@ async function doRemove() {
   if (!detail.value?.manifest) return;
   const name = detail.value.manifest.name;
   if (!confirm(`确定把技能 ${name} 移到回收站吗？\n真身将移入 .trash 保留 7 天，可还原。`)) return;
-  const r = await removeSkill(name);
+  const r = await removeSkill(name).catch(() => null);
   if (r?.ok) {
     app.go("library");
   } else {

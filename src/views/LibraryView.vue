@@ -15,6 +15,8 @@ async function load() {
   loading.value = true;
   try {
     skills.value = (await listSkills()) || [];
+  } catch (e) {
+    actionMsg.value = String((e as Error).message || e);
   } finally {
     loading.value = false;
   }
@@ -86,14 +88,14 @@ const brokenMounts = computed(() => {
 
 async function doRepair() {
   actionMsg.value = "正在重建失效挂载…";
-  const r = await repairMounts();
-  actionMsg.value = `已重建 ${r?.repaired ?? 0} 个失效挂载`;
+  const r = await repairMounts().catch(() => null);
+  actionMsg.value = r ? `已重建 ${r.repaired} 个失效挂载` : "修复失败，请重试";
   await load();
 }
 
 async function doRemove(name: string) {
   if (!confirm(`确定把技能 ${name} 移到回收站吗？\n真身将移入 .trash 保留 7 天，各工具挂载点会在下次同步清理。`)) return;
-  const r = await removeSkill(name);
+  const r = await removeSkill(name).catch(() => null);
   actionMsg.value = r?.ok ? `${name} 已移入回收站（7 天内可还原）` : r?.message || "操作失败";
   await load();
 }

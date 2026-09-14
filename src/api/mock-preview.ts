@@ -186,7 +186,7 @@ export async function mockCall(cmd: string): Promise<unknown> {
           { id: "codex", name: "Codex CLI", dir: "C:\\Users\\demo\\.codex\\skills", skillCount: 23, mountCount: 0 },
         ],
       };
-    case "list_skills": return [];
+    case "list_skills": return JSON.parse(JSON.stringify(SKILLS));
     case "list_conflicts": return [];
     default: return undefined; // 没造的命令走原来的 null 降级
   }

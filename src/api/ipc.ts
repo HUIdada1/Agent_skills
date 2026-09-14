@@ -28,7 +28,13 @@ function isElectron(): boolean {
 
 async function call<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   if (isElectron()) {
-    return (await window.agentSkills!.invoke(cmd, args)) as T;
+    const res = (await window.agentSkills!.invoke(cmd, args)) as unknown;
+    // 后端失败的返回也是对象，混进正常数据会把页面打花，这里统一拦下来转异常
+    if (res && typeof res === "object" && (res as { ok?: unknown }).ok === false) {
+      const msg = (res as { message?: unknown }).message;
+      throw new Error(typeof msg === "string" && msg ? msg : `命令 ${cmd} 执行失败`);
+    }
+    return res as T;
   }
   // 纯浏览器预览（npm run dev:web）：开发模式下用假数据，方便直接调 UI
   if (import.meta.env.DEV) {
@@ -62,7 +68,8 @@ export const syncPlan = () => call<SyncPlan>("sync_plan");
 export const syncExecute = (plan: SyncPlan) => call<SyncResult>("sync_execute", { plan: JSON.parse(JSON.stringify(plan)) });
 export const listReports = () => call<ReportRow[]>("list_reports");
 export const readReport = (file: string) => call<{ content: string }>("read_report", { file });
-export const openReport = (file: string) => call<{ ok: boolean }>("open_report", { file });
+export const openReport = (file: string) =>
+  call<{ ok: boolean }>("open_report", { file }).catch(() => ({ ok: false }));
 
 export const listConflicts = () => call<ConflictItem[]>("list_conflicts");
 export const getConflictDiff = (id: string) => call<ConflictDiff | null>("get_conflict_diff", { id });
@@ -79,7 +86,8 @@ export const trashPurge = () => call<{ purged: number }>("trash_purge");
 
 export const removeSkill = (name: string) => call<{ ok: boolean; message?: string }>("remove_skill", { name });
 
-export const openDataDir = () => call<{ ok: boolean }>("open_data_dir");
+export const openDataDir = () =>
+  call<{ ok: boolean }>("open_data_dir").catch(() => ({ ok: false }));
 export const getDataDir = () => call<string>("get_data_dir");
 export const browseDir = () => call<{ ok: boolean; canceled?: boolean; path: string | null }>("browse_dir");
 

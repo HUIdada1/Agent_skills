@@ -132,11 +132,11 @@ async function uploadSkillDir(cfg, localDir, remoteRel) {
     const buf = fs.readFileSync(f.abs);
     await webdav.put(remoteUrl(cfg, remoteRel, f.rel), cfg.webdav, buf);
   }
-  // 远端多出来的文件删掉（本地删了技能内文件的场景）
+  // 远端多出来的文件/目录删掉（本地删了技能内文件或子目录的场景，DELETE 对集合递归）
   const remoteEntries = await webdav.list(remoteUrl(cfg, remoteRel), cfg.webdav);
   const localRels = new Set(files.map((f) => f.rel));
   for (const e of remoteEntries) {
-    if (!e.isDir && !localRels.has(e.name)) {
+    if (!localRels.has(e.name)) {
       await webdav.remove(remoteUrl(cfg, remoteRel, e.name), cfg.webdav);
     }
   }

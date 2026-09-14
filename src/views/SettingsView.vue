@@ -14,12 +14,16 @@ const saving = ref(false);
 const portable = ref(false);
 
 async function load() {
-  cfg.value = await loadConfig();
-  tools.value = (await listTools()) || [];
-  trash.value = (await trashList()) || [];
-  portable.value = !!(await getIsPortable());
-  const dir = await getDataDir();
-  if (dir) hubDirLabel.value = dir;
+  try {
+    cfg.value = await loadConfig();
+    tools.value = (await listTools()) || [];
+    trash.value = (await trashList()) || [];
+    portable.value = !!(await getIsPortable());
+    const dir = await getDataDir();
+    if (dir) hubDirLabel.value = dir;
+  } catch (e) {
+    actionMsg.value = String((e as Error).message || e);
+  }
 }
 
 async function save() {
@@ -28,13 +32,15 @@ async function save() {
   try {
     const r = await saveConfig(cfg.value);
     actionMsg.value = r?.ok ? "设置已保存，下次扫描生效" : r?.message || "保存失败";
+  } catch (e) {
+    actionMsg.value = String((e as Error).message || e);
   } finally {
     saving.value = false;
   }
 }
 
 async function browseToolPath(toolId: string, idx: number) {
-  const r = await browseDir();
+  const r = await browseDir().catch(() => null);
   if (r?.ok && r.path) {
     if (toolId === "custom") cfg.value!.customDirs[idx] = r.path;
     else cfg.value!.tools[toolId].paths[idx] = r.path;
@@ -42,12 +48,12 @@ async function browseToolPath(toolId: string, idx: number) {
 }
 
 async function browseCustomAdd() {
-  const r = await browseDir();
+  const r = await browseDir().catch(() => null);
   if (r?.ok && r.path) cfg.value!.customDirs.push(r.path);
 }
 
 async function restoreTrash(name: string) {
-  const r = await trashRestore(name);
+  const r = await trashRestore(name).catch(() => null);
   actionMsg.value = r?.ok ? `已还原到 ${r.dest}` : r?.message || "还原失败";
   await load();
 }
@@ -62,8 +68,8 @@ async function purgeAll() {
   } catch {
     return; // 用户点了取消
   }
-  const r = await trashPurge();
-  actionMsg.value = `已清理 ${r?.purged ?? 0} 项`;
+  const r = await trashPurge().catch(() => null);
+  actionMsg.value = r ? `已清理 ${r.purged} 项` : "清理失败，请重试";
   await load();
 }
 

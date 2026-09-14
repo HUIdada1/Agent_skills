@@ -65,14 +65,17 @@ function tick() {
 
 function start() {
   if (timer) return;
-  // 首个 tick 延后 90s：给启动留时间，也避免开机自启后网络未就绪就白跑
-  timer = setInterval(tick, 60 * 1000);
-  setTimeout(tick, 90 * 1000);
+  // 首 tick 延后 90s：给启动留时间，也避免开机自启后网络未就绪就白跑
+  timer = setTimeout(() => {
+    tick();
+    timer = setInterval(tick, 60 * 1000);
+  }, 90 * 1000);
 }
 
 function stop() {
   if (timer) {
     clearInterval(timer);
+    clearTimeout(timer);
     timer = null;
   }
 }

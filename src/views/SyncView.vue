@@ -91,8 +91,12 @@ async function execute() {
 
 async function openReportFile(file: string) {
   activeReport.value = file;
-  const r = await readReport(file);
-  reportContent.value = r?.content || "";
+  try {
+    const r = await readReport(file);
+    reportContent.value = r?.content || "";
+  } catch {
+    reportContent.value = "";
+  }
 }
 
 onMounted(async () => {

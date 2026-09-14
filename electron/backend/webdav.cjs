@@ -66,7 +66,7 @@ function setActiveSignal(signal) {
   activeSignal = signal || null;
 }
 
-/** 网络层异常分类：超时 / 无法连接 / 取消 / 其他，供上层给出明确提示 */
+/** 把异常归类成一句人话（网络层给分类，HTTP 错误保留原文） */
 function networkKind(e) {
   if (!e) return "网络错误";
   if (e.name === "AbortError") return activeSignal && activeSignal.aborted ? "已取消" : "连接超时";
@@ -75,20 +75,6 @@ function networkKind(e) {
   if (/ECONNREFUSED/i.test(msg)) return "连接被拒绝（目标服务未启动或端口不通）";
   if (/ECONNRESET|ETIMEDOUT|EPIPE|EHOSTUNREACH|ENETUNREACH/i.test(msg)) return "网络连接异常";
   return `网络错误（${msg || e.name}）`;
-}
-
-/** 把 WebDAV 请求结果统一成带分类的错误消息（仅网络层异常做分类；业务/HTTP 错误保留原文） */
-function describeFailure(action, e) {
-  if (e && e.name === "AbortError") return `${action}已取消`;
-  return `${action}失败：${networkKind(e)}`;
-}
-
-/** 判断异常是否来自 fetch 网络层（连接失败/超时/取消），区别于 HTTP 状态错误与本地业务错误 */
-function isNetworkError(e) {
-  if (!e || typeof e !== "object") return false;
-  if (e.name === "AbortError" || e.name === "TimeoutError") return true;
-  // undici 网络层失败固定为 TypeError("fetch failed")，HTTP 状态错误由本模块显式构造
-  return e instanceof TypeError;
 }
 
 async function request(method, url, cfg, body, headers = {}) {
@@ -282,4 +268,4 @@ async function test(cfg) {
   return { ok: false, message: `连接失败：HTTP ${res.status}（${Date.now() - started}ms）`, latencyMs: Date.now() - started };
 }
 
-module.exports = { joinUrl, normalizeEndpoint, list, get, getText, put, remove, ensureDir, test, setActiveSignal, networkKind, describeFailure, isNetworkError };
+module.exports = { joinUrl, normalizeEndpoint, list, get, getText, put, remove, ensureDir, test, setActiveSignal, networkKind };

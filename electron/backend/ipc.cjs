@@ -80,9 +80,12 @@ function register({ ipcMain }) {
 
   ipcMain.handle("load_config", handle(() => maskConfig(C())));
   ipcMain.handle("save_config", handle(({ config: next }) => {
-    cfg = unmaskPassword(JSON.parse(JSON.stringify(next)));
-    const r = config.saveConfig(cfg);
-    config.applyAutoStart(cfg);
+    if (!next || typeof next !== "object" || Array.isArray(next)) return fail("配置格式不正确");
+    const merged = unmaskPassword(JSON.parse(JSON.stringify(next)));
+    const r = config.saveConfig(merged);
+    // 落盘成功才更新内存快照，写失败时别把脏数据留给 load_config
+    cfg = merged;
+    config.applyAutoStart(merged);
     return r;
   }));
 
@@ -138,7 +141,7 @@ function register({ ipcMain }) {
     const reports = report.listReports(3);
     return {
       hubDir: config.hubDir(),
-      skillCount: survey.dedup.unique.length,
+      skillCount: syncer.librarySkills(survey).length,
       manifestCount: Object.keys(survey.manifest.skills || {}).length,
       sourceCount: survey.scanned.skills.length,
       l1Merged: survey.dedup.duplicates.length,
@@ -153,18 +156,7 @@ function register({ ipcMain }) {
   }));
   ipcMain.handle("list_skills", handle(() => {
     const survey = syncer.survey(C());
-    const rows = survey.dedup.unique.map((e) => ({
-      name: e.name,
-      skillName: e.skillName,
-      description: e.description,
-      version: e.version,
-      treeHash: e.treeHash,
-      health: e.health,
-      sources: e.sources,
-      inManifest: !!survey.manifest.skills[e.name],
-      mounts: survey.manifest.skills[e.name]?.mounts || [],
-      mtimeMs: e.mtimeMs,
-    }));
+    const rows = syncer.librarySkills(survey);
     // 工具自带系统技能：默认隐藏（前端只在没有搜索词时过滤），永不收纳，搜索时可辨识
     const seen = new Set(rows.map((r) => r.name));
     for (const s of survey.scanned.skills) {
@@ -188,8 +180,10 @@ function register({ ipcMain }) {
   }));
   // 已收纳：返回 manifest + 中央真身内容；未收纳：去各工具目录找同名真身，
   // 让详情页能展示内容和"去同步中心收纳"引导，而不是卡在加载态
-  ipcMain.handle("get_skill", handle(({ name }) => {
+  ipcMain.handle("get_skill", handle(({ name: raw }) => {
     const fs = require("node:fs");
+    const name = path.basename(String(raw || ""));
+    if (!name) return null;
     const m = hub.loadManifest();
     const entry = m.skills[name];
     const dir = path.join(hub.skillsDir(), name);

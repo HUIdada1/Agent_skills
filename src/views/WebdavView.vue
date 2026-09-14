@@ -96,15 +96,22 @@ watch(() => logs.value.length, async () => {
   logBox.value?.scrollTo({ top: logBox.value.scrollHeight });
 });
 
+// 后台刷新拉不到就保留旧值，别把页面已有状态冲掉
 async function refreshStatus() {
-  status.value = await webdavStatus();
+  try {
+    status.value = await webdavStatus();
+  } catch { /* 保留旧值 */ }
 }
 async function refreshLogs() {
-  logs.value = (await webdavLogs()) || [];
+  try {
+    logs.value = (await webdavLogs()) || [];
+  } catch { /* 保留旧值 */ }
 }
 async function refreshDevices() {
-  const r = await webdavDevices();
-  devices.value = r?.devices || [];
+  try {
+    const r = await webdavDevices();
+    devices.value = r?.devices || [];
+  } catch { /* 保留旧值 */ }
 }
 
 async function testConn() {
@@ -137,19 +144,27 @@ async function save() {
 }
 
 async function startSync() {
-  const r = await webdavSync();
-  if (r && !r.ok) saveMsg.value = r.message || "启动失败";
-  else await refreshStatus();
+  try {
+    const r = await webdavSync();
+    if (r && !r.ok) saveMsg.value = r.message || "启动失败";
+    else await refreshStatus();
+  } catch (e) {
+    saveMsg.value = String((e as Error).message || e);
+  }
 }
 
 async function cancelSync() {
-  await webdavCancel();
+  await webdavCancel().catch(() => {});
 }
 
 async function openReportFile(file: string) {
   activeReport.value = file;
-  const r = await readReport(file);
-  reportContent.value = r?.content || "";
+  try {
+    const r = await readReport(file);
+    reportContent.value = r?.content || "";
+  } catch {
+    reportContent.value = "";
+  }
 }
 
 // 同步进度走主进程广播（event:"webdav"）；运行中日志实时长出来；
@@ -157,11 +172,13 @@ async function openReportFile(file: string) {
 let unsub: (() => void) | undefined;
 // KeepAlive 下每次切回本页都重新拉磁盘配置与状态，避免设置页与本页的快照互相回滚
 onActivated(async () => {
-  cfg.value = await loadConfig();
+  try {
+    cfg.value = await loadConfig();
+  } catch { /* 后端没起来就先不填表单 */ }
   await refreshStatus();
   await refreshLogs();
   if (configured.value) await refreshDevices();
-  const all = (await listReports()) || [];
+  const all = (await listReports().catch(() => [])) || [];
   reports.value = all.filter((r) => r.file.startsWith("webdav-"));
 });
 // 事件订阅只挂一次
@@ -191,7 +208,7 @@ onMounted(() => {
       refreshDevices();
       listReports().then((all) => {
         reports.value = (all || []).filter((r) => r.file.startsWith("webdav-"));
-      });
+      }).catch(() => {});
     }
   });
 });

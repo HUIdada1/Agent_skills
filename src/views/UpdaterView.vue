@@ -12,20 +12,28 @@ const st = ref<UpdateStatus | null>(null);
 let unsubscribe: (() => void) | undefined;
 
 async function refresh(partial?: UpdateStatus | null) {
-  st.value = partial || (await getUpdateStatus());
+  try {
+    st.value = partial || (await getUpdateStatus());
+  } catch { /* 拉不到就保留旧状态 */ }
 }
 
 async function doCheck() {
-  refresh(await checkUpdate());
+  try {
+    st.value = await checkUpdate();
+  } catch { /* 旧状态不动 */ }
 }
 
 async function doDownload() {
-  refresh(await downloadUpdate());
+  try {
+    st.value = await downloadUpdate();
+  } catch { /* 旧状态不动 */ }
 }
 
 async function doInstall() {
   // 触发后主进程会退出并静默安装；状态仅作界面反馈
-  refresh(await installUpdate());
+  try {
+    st.value = await installUpdate();
+  } catch { /* 旧状态不动 */ }
 }
 
 // 是否已发现可升级的新版本：决定箭头与新版号是否点亮

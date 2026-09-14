@@ -3,6 +3,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const config = require("./config.cjs");
+const scanner = require("./scanner.cjs");
 
 function manifestFile() {
   return path.join(config.hubDir(), "manifest.json");
@@ -48,11 +49,14 @@ function importSkill(entry) {
     return { action: "conflict", name: entry.name, message: "中央已存在同名不同内容的技能" };
   }
   fs.cpSync(entry.dir, dest, { recursive: true });
+  // 落账用中央副本实算哈希：entry 带的是扫描时的源侧哈希，两者有差（比如目录里有链接）
+  // 时 manifest 记旧值，下轮同步会把同内容副本永久误判成冲突
+  const realHash = scanner.treeHash(dest);
   m.skills[entry.name] = {
     name: entry.name,
     version: entry.version || "",
     description: entry.description || "",
-    treeHash: entry.treeHash,
+    treeHash: realHash,
     skillName: entry.skillName || entry.name,
     sources: entry.sources.map((s) => ({ tool: s.tool, originalName: s.name, firstSeen: new Date().toISOString() })),
     mounts: [],
@@ -60,7 +64,7 @@ function importSkill(entry) {
     health: entry.health || [],
   };
   saveManifest(m);
-  return { action: "imported", name: entry.name };
+  return { action: "imported", name: entry.name, treeHash: realHash };
 }
 
 function mergeSources(oldEntry, entry) {
@@ -97,7 +101,14 @@ function toTrash(absPath, tag) {
   const trash = trashDir();
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const dest = path.join(trash, `${stamp}-${tag || path.basename(absPath)}`);
-  fs.renameSync(absPath, dest);
+  try {
+    fs.renameSync(absPath, dest);
+  } catch (e) {
+    // 中央仓库和工具目录常不在一个盘，rename 跨盘抛 EXDEV，改复制+删除
+    if (e.code !== "EXDEV") throw e;
+    fs.cpSync(absPath, dest, { recursive: true });
+    fs.rmSync(absPath, { recursive: true, force: true });
+  }
   return dest;
 }
 
@@ -119,6 +130,8 @@ function listTrash() {
 }
 
 function restoreFromTrash(trashName, destParent) {
+  trashName = path.basename(String(trashName || "")); // 只认 .trash 直属条目，挡 ../
+  if (!trashName) return { ok: false, message: "名称为空" };
   const src = path.join(trashDir(), trashName);
   const base = destParent || skillsDir();
   // 剥掉回收站命名里的时间戳前缀
@@ -171,6 +184,8 @@ function dirSize(p) {
 
 // 删中央技能：真身进回收站，manifest 移除并记墓碑（跨设备同步时据此删除远端、防止其他设备把技能"复活"回来）
 function removeSkill(name) {
+  name = path.basename(String(name || "")); // 技能名就是目录名，带路径一律拒收
+  if (!name) return { ok: false, message: "非法技能名" };
   const dir = path.join(skillsDir(), name);
   if (!fs.existsSync(dir)) return { ok: false, message: "技能不存在" };
   const m = loadManifest();

@@ -164,19 +164,19 @@ function scanSystemDir(abs, toolId, out) {
   }
 }
 
-// 扫一个工具目录。junction 子目录不算技能本体，单独归到 mounts 里给同步层用
+// 扫一个工具目录。junction 子目录不算技能本体，单独归到 mounts 里给同步层用。
+// 注意顺序：Windows 上 junction 的 dirent.isDirectory() 是 false，先按 isDirectory 过滤
+// 会把链接整个跳过，必须 lstat 后先判 isSymbolicLink
 function scanDir(dir, toolId) {
   const skills = [];
   const mounts = [];
-  const foreignLinks = [];
   let entries;
   try {
     entries = fs.readdirSync(dir, { withFileTypes: true });
   } catch {
-    return { skills, mounts, foreignLinks };
+    return { skills, mounts };
   }
   for (const e of entries) {
-    if (!e.isDirectory()) continue;
     const abs = path.join(dir, e.name);
     let st;
     try {
@@ -185,7 +185,7 @@ function scanDir(dir, toolId) {
       continue;
     }
     if (st.isSymbolicLink()) {
-      // 指向中央仓库的是正常挂载，指向别处的记下来但不碰
+      // 指向中央仓库的是正常挂载，指向别处或已失效的也记下来，别让它隐身
       let target = "";
       try {
         target = fs.readlinkSync(abs);
@@ -193,13 +193,14 @@ function scanDir(dir, toolId) {
       mounts.push({ tool: toolId, name: e.name, path: abs, target, valid: fs.existsSync(target) });
       continue;
     }
+    if (!st.isDirectory()) continue;
     if (isSystemDir(abs)) {
       scanSystemDir(abs, toolId, skills);
       continue;
     }
     skills.push({ ...buildSkillEntry(abs, st), tool: toolId, origin: "user" });
   }
-  return { skills, mounts, foreignLinks };
+  return { skills, mounts };
 }
 
 function countFiles(dir) {

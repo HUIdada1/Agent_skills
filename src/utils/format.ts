@@ -7,7 +7,7 @@ export function fmtSize(bytes: number): string {
 
 export function fmtTime(ms: number | string | null | undefined): string {
   if (!ms) return "—";
-  const d = typeof ms === "number" ? new Date(ms) : new Date(ms);
+  const d = new Date(ms);
   if (isNaN(d.getTime())) return "—";
   const p = (n: number) => String(n).padStart(2, "0");
   return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
