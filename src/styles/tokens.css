@@ -126,8 +126,11 @@ a { color: inherit; text-decoration: none; }
   display: flex;
   flex-direction: column;
   padding: 6px 14px 20px;
-  position: sticky;
+  /* fixed 钉在视口，文档滚到底也不会位移；sticky 受包含块约束，滚到底会被顶走 */
+  position: fixed;
   top: 40px;
+  left: 0;
+  z-index: 60;
   height: calc(100vh - 40px);
   overflow-y: auto;
 }
@@ -202,8 +205,9 @@ a { color: inherit; text-decoration: none; }
 .main {
   flex: 1;
   min-width: 0;
+  margin-left: 232px; /* 侧栏 fixed 后不再占 flex 位，这里把位置让出来 */
   padding: 34px 42px 64px;
-  /* 兜底：内容超宽时在本区内出现滚动条（常规高度下实际走文档级滚动，侧边栏 sticky 跟随） */
+  /* 兜底：内容超宽时在本区内出现滚动条（常规高度下实际走文档级滚动） */
   overflow: auto;
 }
 
@@ -626,9 +630,11 @@ a { color: inherit; text-decoration: none; }
   .sidebar {
     width: 100%;
     height: auto;
-    position: sticky; /* 吸附在标题条下方，页面滚动导航不被盖住 */
+    position: fixed; /* 与宽屏一致钉在标题条下，滚到底不窜位 */
     top: 40px;
-    z-index: 50;
+    left: 0;
+    right: 0;
+    z-index: 60;
     flex-direction: row;
     align-items: center;
     gap: 6px;
@@ -641,7 +647,7 @@ a { color: inherit; text-decoration: none; }
   .nav-group { display: none; }
   .nav-item { padding: 7px 11px; white-space: nowrap; }
   .sidebar-foot { display: none; }
-  .main { padding: 24px 18px 48px; }
+  .main { margin-left: 0; padding: 91px 18px 48px; } /* 24 原留白 + 固定顶条约 67 让位 */
   .grid-4, .grid-3, .grid-2, .skill-grid, .diff-wrap { grid-template-columns: 1fr; }
   .page-head { flex-direction: column; align-items: flex-start; }
 }
