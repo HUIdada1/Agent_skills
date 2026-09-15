@@ -1,20 +1,22 @@
 <script setup lang="ts">
 // 中央技能库
 import { ref, computed, onMounted } from "vue";
-import { listSkills, repairMounts, removeSkill, type SkillRow } from "../api/ipc";
+import { listSkills, repairMounts, removeSkill, adoptHubSkill, watchStatus, type SkillRow, type WatchStatus } from "../api/ipc";
 import { useAppStore } from "../stores/app";
-import { fmtSize } from "../utils/format";
+import { fmtSize, fmtTime } from "../utils/format";
 
 const app = useAppStore();
 const skills = ref<SkillRow[]>([]);
 const loading = ref(true);
 const query = ref("");
 const actionMsg = ref("");
+const watchInfo = ref<WatchStatus | null>(null);
 
 async function load() {
   loading.value = true;
   try {
     skills.value = (await listSkills()) || [];
+    watchInfo.value = (await watchStatus().catch(() => null)) || null;
   } catch (e) {
     actionMsg.value = String((e as Error).message || e);
   } finally {
@@ -100,6 +102,20 @@ async function doRemove(name: string) {
   await load();
 }
 
+// 纳管中央未登记目录：只补账，不动任何文件
+async function doAdopt(name: string) {
+  actionMsg.value = `正在纳管 ${name}…`;
+  const r = await adoptHubSkill(name).catch(() => null);
+  actionMsg.value = r?.ok ? `已纳管 ${name}，登记挂载 ${r.mounts} 处` : r?.message || "纳管失败";
+  await load();
+}
+
+// 未登记条目靠「纳管」处理就行，详情页没有针对它的内容
+function openCard(s: SkillRow) {
+  if (s.origin === "hub-extra") return;
+  app.openSkillDetail(s.name);
+}
+
 onMounted(load);
 </script>
 
@@ -108,11 +124,14 @@ onMounted(load);
     <div class="page-head">
       <div>
         <h1>中央技能库</h1>
-        <p class="sub">唯一真身存放在 <span class="mono">skills\</span>，各工具目录中的同名条目均为指向此处的 Junction。</p>
+        <p class="sub">
+          唯一真身存放在 <span class="mono">skills\</span>，各工具目录中的同名条目均为指向此处的 Junction。
+          <template v-if="watchInfo">后台每 <b>{{ watchInfo.intervalSeconds }}</b> 秒自动感知各工具目录：新技能零冲突自动收纳，有冲突只提醒<template v-if="watchInfo.lastScanAt">（上次扫描 <span class="mono">{{ fmtTime(watchInfo.lastScanAt) }}</span>）</template>。</template>
+        </p>
       </div>
       <div class="head-actions">
         <button class="btn" :disabled="!brokenMounts.length" @click="doRepair" title="重建全部失效挂载"><i class="ph ph-link-break"></i>修复挂载</button>
-        <button class="btn btn-primary" @click="load"><i class="ph ph-arrows-counter-clockwise"></i>刷新</button>
+        <button class="btn btn-primary" :disabled="loading" @click="load" title="立即重扫技能库与挂载状态"><i class="ph ph-arrows-counter-clockwise"></i>{{ loading ? "扫描中" : "立即刷新" }}</button>
       </div>
     </div>
 
@@ -137,14 +156,16 @@ onMounted(load);
     <div class="panel" v-if="loading" style="text-align:center; color:var(--text-3)">扫描中…</div>
 
     <div class="skill-grid" v-else-if="filtered.length">
-      <div class="skill-card" v-for="s in filtered" :key="s.name" @click="app.openSkillDetail(s.name)">
+      <div class="skill-card" v-for="s in filtered" :key="s.name" @click="openCard(s)">
         <div class="s-top">
           <div class="s-icon" :title="dotOf(s).label"><span class="s-dot" :style="{ color: dotOf(s).color }"></span></div>
           <span class="s-name">{{ s.name }}</span>
           <span class="badge ok" v-if="s.mounts.some((m) => m.enabled)"><i class="ph ph-check-circle"></i>已挂载</span>
           <span class="badge mute" v-else-if="s.inManifest"><i class="ph ph-minus-circle"></i>未挂载</span>
+          <span class="badge warn" v-else-if="s.origin === 'hub-extra'"><i class="ph ph-eye-slash"></i>中央未登记</span>
           <span class="badge warn" v-else-if="s.origin === 'system'"><i class="ph ph-shield-check"></i>系统自带</span>
           <span class="badge info" v-else><i class="ph ph-download-simple"></i>待收纳</span>
+          <button class="btn btn-sm" v-if="s.origin === 'hub-extra' && !s.mounts.length" title="补登记进 manifest（只记账，不动文件）" @click.stop="doAdopt(s.name)"><i class="ph ph-clipboard-text"></i>纳管</button>
         </div>
         <div class="s-desc">{{ s.description || "（无描述，建议补齐 SKILL.md 的 description 字段）" }}</div>
         <div class="s-meta">

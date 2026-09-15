@@ -411,6 +411,21 @@ onActivated(load);
         </div>
       </div>
 
+      <!-- 自动感知：AI 在任一工具里新加技能，后台自动收纳分发 -->
+      <div class="section">
+        <h2>自动感知</h2>
+        <p class="desc">后台每 15 秒扫一遍各工具技能目录的目录名和修改时间：发现新技能且内容零冲突时自动收纳进中央并分发挂载；有冲突（同名不同内容）只弹通知、绝不替你选边。</p>
+        <div class="panel">
+          <div class="opt-row" style="padding-bottom:2px">
+            <div>
+              <div class="opt-title">自动收纳新技能</div>
+              <div class="help">在 ZCode / Codex / Claude / 反重力等任一工具里让 AI 加技能，几十秒内自动入中央库并对各工具可见；关闭后在同步中心手动收纳</div>
+            </div>
+            <el-switch v-model="cfg!.watch.enabled" />
+          </div>
+        </div>
+      </div>
+
       <div class="section">
         <h2>回收站（{{ trash.length }} 项）</h2>
         <p class="desc">被替换 / 删除的技能目录先进回收站，保留 {{ cfg!.trashDays }} 天可还原。</p>

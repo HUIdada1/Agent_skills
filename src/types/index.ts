@@ -8,7 +8,7 @@ export type SkillMount = {
   tool: string;
   name: string;
   path: string;
-  type: "junction" | "copy";
+  type: "junction" | "symlink" | "copy";
   enabled: boolean;
 };
 
@@ -23,8 +23,17 @@ export type SkillRow = {
   inManifest: boolean;
   mounts: SkillMount[];
   mtimeMs: number;
-  /** user=用户安装；system=工具自带（默认隐藏，搜索可见，永不收纳） */
-  origin?: "user" | "system";
+  /** user=用户安装；system=工具自带（默认隐藏，搜索可见，永不收纳）；hub-extra=中央仓库有目录但未登记 */
+  origin?: "user" | "system" | "hub-extra";
+};
+
+// 中央巡检：仓库里躺着但 manifest 没记账的目录
+export type HubExtraRow = {
+  name: string;
+  isLink: boolean;
+  hasSkillMd: boolean;
+  mtimeMs: number;
+  health: HealthIssue[];
 };
 
 export type Overview = {
@@ -40,6 +49,7 @@ export type Overview = {
   pendingConflicts: ConflictItem[];
   recentReports: ReportRow[];
   trashCount: number;
+  hubExtra: HubExtraRow[];
 };
 
 export type ReportRow = { file: string; path: string; mtimeMs: number };
@@ -121,6 +131,7 @@ export type AppConfig = {
     dailyTime: string;
     notifyOnSuccess: boolean;
   };
+  watch: { enabled: boolean };
 };
 
 export type ToolRow = {
@@ -149,6 +160,9 @@ export type RemoveToolPlan = {
 export type OrphanRow = { name: string; tool: string; dir: string; mtimeMs?: number };
 
 export type TrashRow = { name: string; path: string; trashedAt: number; sizeBytes: number };
+
+// 自动感知状态：技能库/同步中心展示"每 X 秒自动扫描"用
+export type WatchStatus = { intervalSeconds: number; lastScanAt: number };
 
 export type SkillDetail = {
   manifest: {

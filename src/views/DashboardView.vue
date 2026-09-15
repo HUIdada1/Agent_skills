@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // 仪表盘
 import { ref, onMounted } from "vue";
-import { getOverview, type Overview } from "../api/ipc";
+import { getOverview, adoptHubSkill, type Overview } from "../api/ipc";
 import { useAppStore } from "../stores/app";
 import { fmtTime } from "../utils/format";
 
@@ -9,6 +9,7 @@ const app = useAppStore();
 const data = ref<Overview | null>(null);
 const loading = ref(true);
 const errMsg = ref("");
+const actionMsg = ref("");
 
 function mountOkCount(toolId: string, o: Overview) {
   return o.mountHealth.filter((m) => m.tool === toolId && m.valid).length;
@@ -19,7 +20,14 @@ function mountBroken(o: Overview) {
 }
 
 function pendingCount(o: Overview): number {
-  return o.pendingConflicts.length + o.orphans.length;
+  return o.pendingConflicts.length + o.orphans.length + (o.hubExtra || []).length;
+}
+
+async function doAdopt(name: string) {
+  actionMsg.value = `正在纳管 ${name}…`;
+  const r = await adoptHubSkill(name).catch(() => null);
+  actionMsg.value = r?.ok ? `已纳管 ${name}，登记挂载 ${r.mounts} 处` : r?.message || "纳管失败";
+  await load();
 }
 
 async function load() {
@@ -52,7 +60,8 @@ onMounted(load);
       </div>
     </div>
 
-    <div class="note warn mt-8" v-if="errMsg"><i class="ph ph-warning"></i><div>{{ errMsg }}</div></div>
+    <div class="note warn" v-if="errMsg"><i class="ph ph-warning"></i><div>{{ errMsg }}</div></div>
+    <div class="note mt-8" v-if="actionMsg"><i class="ph ph-info"></i><div>{{ actionMsg }}</div></div>
 
     <template v-if="data">
       <div class="grid grid-4">
@@ -74,7 +83,7 @@ onMounted(load);
         <div class="panel stat">
           <div class="label">待处理</div>
           <div class="num" :class="pendingCount(data) ? 'warn' : 'accent'">{{ pendingCount(data) }}<small>项</small></div>
-          <div class="hint">{{ data.pendingConflicts.length }} 个冲突 + {{ data.orphans.length }} 个孤儿目录</div>
+          <div class="hint">{{ data.pendingConflicts.length }} 个冲突 + {{ data.orphans.length }} 个孤儿 + {{ (data.hubExtra || []).length }} 个未登记</div>
         </div>
       </div>
 
@@ -149,6 +158,14 @@ onMounted(load);
                 <div class="t-path">存在于 {{ app.toolName(o.tool) }}{{ o.mtimeMs ? " · 最后修改 " + fmtTime(o.mtimeMs) : "" }}，待确认收纳</div>
               </div>
               <button class="btn btn-sm" @click="app.go('sync')"><i class="ph ph-arrow-right"></i>查看</button>
+            </div>
+            <div class="tool-row" v-for="h in (data.hubExtra || []).slice(0, 3)" :key="'hx' + h.name">
+              <div class="tool-icon" style="color:var(--warn)"><i class="ph ph-eye-slash"></i></div>
+              <div class="t-main">
+                <div class="t-name">中央未登记：{{ h.name }}</div>
+                <div class="t-path">{{ h.isLink ? "悬空链接，无真身" : h.hasSkillMd ? "已被直接放入中央仓库（可能 AI 绕过软件操作）" : "非技能内容" }}</div>
+              </div>
+              <button class="btn btn-sm" :disabled="h.isLink" @click="doAdopt(h.name)"><i class="ph ph-clipboard-text"></i>纳管</button>
             </div>
           </div>
           <div class="panel" v-else>

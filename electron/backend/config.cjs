@@ -81,6 +81,10 @@ const DEFAULT_CONFIG = {
     dailyTime: "09:00",
     notifyOnSuccess: false, // 同步成功也通知（失败总通知）
   },
+  // 自动感知：后台每 15 秒快照各工具技能目录，有新技能且零冲突才自动收纳，有冲突只提醒
+  watch: {
+    enabled: true,
+  },
 };
 
 function configFile() {

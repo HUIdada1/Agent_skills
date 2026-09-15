@@ -201,10 +201,42 @@ function removeSkill(name) {
   return { ok: true, trashPath };
 }
 
+// 中央巡检：skills\ 里有目录、manifest 没记账的条目（AI 绕过软件直接塞进来的）。
+// 只读不动文件；纳管动作在 syncer.adoptHubSkill
+function hubExtra() {
+  const m = loadManifest();
+  const rows = [];
+  let entries;
+  try {
+    entries = fs.readdirSync(skillsDir(), { withFileTypes: true });
+  } catch {
+    return rows;
+  }
+  for (const e of entries) {
+    if (m.skills[e.name] || m.deleted[e.name]) continue;
+    const abs = path.join(skillsDir(), e.name);
+    let st;
+    try {
+      st = fs.lstatSync(abs);
+    } catch {
+      continue;
+    }
+    rows.push({
+      name: e.name,
+      isLink: st.isSymbolicLink(),
+      hasSkillMd: fs.existsSync(path.join(abs, "SKILL.md")),
+      mtimeMs: st.mtimeMs,
+      health: scanner.healthCheck(abs),
+    });
+  }
+  rows.sort((a, b) => (a.name < b.name ? -1 : 1));
+  return rows;
+}
+
 module.exports = {
   hubDir: config.hubDir, ensureHub: config.ensureHub,
   skillsDir, trashDir, reportsDir,
   manifestFile, loadManifest, saveManifest,
   importSkill, setMount, removeMount,
-  toTrash, listTrash, restoreFromTrash, purgeTrash, removeSkill, dirSize,
+  toTrash, listTrash, restoreFromTrash, purgeTrash, removeSkill, dirSize, hubExtra,
 };

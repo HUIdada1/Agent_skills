@@ -161,6 +161,33 @@ fs.utimesSync(oldTrash, oldTime, oldTime);
 const purged = hub.purgeTrash(7);
 check("超期回收站被清理", purged >= 1 && !fs.existsSync(oldTrash));
 
+// ---- 中央巡检与纳管：AI 绕过软件直接塞进中央仓库的场景 ----
+const hxDir = path.join(hub.skillsDir(), "sneaky-ai-skill");
+fs.mkdirSync(hxDir, { recursive: true });
+fs.copyFileSync(path.join(hub.skillsDir(), "alpha", "SKILL.md"), path.join(hxDir, "SKILL.md"));
+check("巡检发现未登记目录", hub.hubExtra().some((x) => x.name === "sneaky-ai-skill"));
+const nonSkillDir = path.join(hub.skillsDir(), "not-a-skill");
+fs.mkdirSync(nonSkillDir, { recursive: true });
+check("纳管拒绝缺 SKILL.md 的目录", !syncer.adoptHubSkill("not-a-skill", cfg).ok);
+const adopted = syncer.adoptHubSkill("xx/../sneaky-ai-skill", cfg); // 带路径只认目录名（与 removeSkill 同约定）
+check("纳管成功且只补账不挂载", adopted.ok && !!hub.loadManifest().skills["sneaky-ai-skill"] && adopted.mounts === 0);
+check("纳管后巡检不再报它", !hub.hubExtra().some((x) => x.name === "sneaky-ai-skill"));
+check("重复纳管被拒", !syncer.adoptHubSkill("sneaky-ai-skill", cfg).ok);
+fs.rmSync(nonSkillDir, { recursive: true, force: true });
+
+// ---- 自动感知：快照变化 + 零冲突自动收纳 ----
+const watch = require("../electron/backend/watch.cjs");
+check("挂载类型按平台命名", mounter.linkType() === (process.platform === "win32" ? "junction" : "symlink"));
+const fp1 = watch.fingerprint(cfg);
+mkSkill(zcode, "watch-new", "watch-new", "自动感知新增技能 内容 W");
+const fp2 = watch.fingerprint(cfg);
+check("感知快照捕捉新增目录", fp1 !== fp2);
+watch.handle(cfg, fp2); // 零冲突场景：自动收纳 + 原位转挂载
+check("自动收纳进中央", !!hub.loadManifest().skills["watch-new"] && mounter.isLink(path.join(zcode, "watch-new")));
+const fp3 = watch.fingerprint(cfg);
+watch.handle(cfg, fp3); // 挂载替换后第二拍收敛
+check("第二拍收敛后快照稳定", watch.fingerprint(cfg) === fp3);
+
 // ---- 还原 ----
 hub.toTrash(path.join(zcode), "zcode-test"); // 反正是临时目录
 const item = hub.listTrash().find((x) => x.name.includes("zcode-test"));

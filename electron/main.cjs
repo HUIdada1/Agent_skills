@@ -7,6 +7,7 @@ const ipc = require("./backend/ipc.cjs");
 const updater = require("./backend/updater.cjs");
 const remotesync = require("./backend/remotesync.cjs");
 const scheduler = require("./backend/scheduler.cjs");
+const watch = require("./backend/watch.cjs");
 
 const DEV_URL = process.env.VITE_DEV_SERVER_URL || "http://localhost:1420";
 
@@ -183,6 +184,18 @@ function notify(title, body) {
   n.show();
 }
 
+// 自动感知回执：零冲突收纳直接报告结果；发现冲突只提醒，等用户去软件里裁决
+watch.setOnEvent(({ kind, summary, count }) => {
+  refreshTrayMenu();
+  if (kind === "conflict") {
+    notify("Agent_skills", `发现 ${count || 0} 个需要裁决的冲突，已跳过自动收纳`);
+    return;
+  }
+  if (kind === "synced" && summary) {
+    notify("Agent_skills", `自动收纳完成：${summary.imported} 个新增 · 挂载 ${summary.mounted} 处 · 合并重复 ${summary.merged} 份`);
+  }
+});
+
 // ===== 单实例锁 =====
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -196,6 +209,7 @@ if (!gotLock) {
     createWindow();
     createTray();
     scheduler.start();
+    watch.start();
     updater.init({ onShowWindow: showWindow, onTrayRefresh: refreshTrayMenu });
 
     // 依据配置启用开机自启（便携版不支持：注册的会是临时解压副本路径，退出即失效）
@@ -213,11 +227,13 @@ if (!gotLock) {
       e.preventDefault();
       quitting = true;
       scheduler.stop();
+      watch.stop();
       updater.triggerInstall();
       return;
     }
     quitting = true;
     scheduler.stop();
+    watch.stop();
   });
 
   app.on("window-all-closed", () => {

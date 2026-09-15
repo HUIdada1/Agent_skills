@@ -91,7 +91,7 @@ function survey(cfg) {
   }
   const orphans = scanned.skills.filter((s) => s.origin !== "system" && !known.has(s.name)).map((s) => ({ name: s.name, tool: s.tool, dir: s.dir, mtimeMs: s.mtimeMs }));
   const mountHealth = mounter.verifyAll(manifest);
-  return { scanned, dedup: d, manifest, orphans, mountHealth };
+  return { scanned, dedup: d, manifest, orphans, mountHealth, hubExtra: hub.hubExtra() };
 }
 
 function planSync(cfg) {
@@ -281,7 +281,7 @@ function doMount(cfg, a, result, s) {
   if (r.action === "already") s.skipped++;
   else s.mounted++;
   result.mounts.push({ skill: a.skill, dir: toolDir, action: a.replaceReal && realExists ? "replace-mount" : "mount", outcome });
-  hub.setMount(a.skill, a.toolId || "custom", linkPath, cfg.mountMode === "copy" ? "copy" : "junction", true);
+  hub.setMount(a.skill, a.toolId || "custom", linkPath, cfg.mountMode === "copy" ? "copy" : mounter.linkType(), true);
   if (r.action === "mounted") result.manifestDiff.push(`+ mount ${mountName} @ ${toolDir} → skills/${a.skill}`);
 }
 
@@ -297,7 +297,7 @@ function resolveContentConflict(item, choice, cfg) {
     const backed = hub.toTrash(toolCopy, skill);
     const r = mounter.mount(skill, dir, cfg.mountMode, skill);
     if (r.action === "mounted" || r.action === "already") {
-      hub.setMount(skill, toolId, path.join(dir, skill), cfg.mountMode, true);
+      hub.setMount(skill, toolId, path.join(dir, skill), cfg.mountMode === "copy" ? "copy" : mounter.linkType(), true);
       noteHistory(skill, `冲突裁决：保留中央版，${toolId} 版进回收站（${path.basename(backed)}）`);
       return { ok: true, message: "已保留中央版并挂载" };
     }
@@ -314,7 +314,7 @@ function resolveContentConflict(item, choice, cfg) {
       hub.saveManifest(m);
     }
     const r = mounter.mount(skill, dir, cfg.mountMode, skill);
-    if (r.action === "mounted" || r.action === "already") hub.setMount(skill, toolId, path.join(dir, skill), cfg.mountMode, true);
+    if (r.action === "mounted" || r.action === "already") hub.setMount(skill, toolId, path.join(dir, skill), cfg.mountMode === "copy" ? "copy" : mounter.linkType(), true);
     return { ok: true, message: "已用工具版覆盖中央并分发到其他挂载点" };
   }
 
@@ -351,7 +351,7 @@ function resolveNormConflict(item, choice, cfg) {
     if (bEntry) {
       const r = mounter.mount(aName, path.dirname(bEntry.dir), cfg.mountMode, bName);
       if (r.action === "mounted" || r.action === "already") {
-        hub.setMount(aName, bEntry.tool, path.join(path.dirname(bEntry.dir), bName), cfg.mountMode, true);
+        hub.setMount(aName, bEntry.tool, path.join(path.dirname(bEntry.dir), bName), cfg.mountMode === "copy" ? "copy" : mounter.linkType(), true);
       }
     }
     noteHistory(aName, `L2 裁决：确认 ${bName} 为同一技能，原目录改挂到 ${aName}`);
@@ -454,4 +454,46 @@ function repairMounts(cfg) {
   return { repaired, details };
 }
 
-module.exports = { survey, librarySkills, planSync, executeSync, loadConflicts, saveConflicts, upsertConflict, resolveContentConflict, resolveNormConflict, toggleMount, removeCustomTool, repairMounts };
+// 中央巡检发现未登记目录后的纳管：只补账、记录现成挂载，绝不移动/删除任何文件。
+// WebDAV 同步占用中央仓库时不动账本
+function adoptHubSkill(raw, cfg) {
+  const name = path.basename(String(raw || ""));
+  if (!name) return { ok: false, message: "非法技能名" };
+  const dir = path.join(hub.skillsDir(), name);
+  const m = hub.loadManifest();
+  if (m.skills[name]) return { ok: false, message: `「${name}」已在库中` };
+  if (!fs.existsSync(dir)) return { ok: false, message: "中央仓库里没有这个技能目录" };
+  if (mounter.isLink(dir)) return { ok: false, message: "该条目是链接而非真身目录，无法纳管" };
+  let parsed;
+  try {
+    parsed = scanner.parseSkillMd(dir);
+  } catch {
+    return { ok: false, message: "缺少可解析的 SKILL.md，可能不是技能，拒绝纳管" };
+  }
+  if (!parsed.ok) return { ok: false, message: "SKILL.md 缺少合法 frontmatter，拒绝纳管" };
+  // 惰性 require：remotesync 反过来依赖 syncer，顶层引会循环
+  if (require("./remotesync.cjs").isRunning()) return { ok: false, message: "WebDAV 同步进行中，稍后重试" };
+  // 顺带把各工具目录已存在的挂载链接记进账（AI 可能只建链接没写账）
+  const mounts = [];
+  for (const t of adapter.resolveScanTargets(cfg)) {
+    const lp = path.join(t.dir, name);
+    if (mounter.pointsTo(lp, dir) && fs.existsSync(lp)) {
+      mounts.push({ tool: t.id, name, path: lp, type: mounter.linkType(), enabled: true });
+    }
+  }
+  m.skills[name] = {
+    name,
+    version: parsed.info.version || "",
+    description: parsed.info.description || "",
+    treeHash: scanner.treeHash(dir),
+    skillName: parsed.info.name || name,
+    sources: [],
+    mounts,
+    mergeHistory: [{ at: new Date().toISOString(), action: "adopt", detail: "中央仓库未登记目录纳管" }],
+    health: scanner.healthCheck(dir),
+  };
+  hub.saveManifest(m);
+  return { ok: true, name, mounts: mounts.length };
+}
+
+module.exports = { survey, librarySkills, planSync, executeSync, loadConflicts, saveConflicts, upsertConflict, resolveContentConflict, resolveNormConflict, toggleMount, removeCustomTool, repairMounts, adoptHubSkill };

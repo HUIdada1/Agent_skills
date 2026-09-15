@@ -41,6 +41,8 @@ const ALLOWED_COMMANDS = new Set([
   "trash_restore",
   "trash_purge",
   "remove_skill",
+  "watch_status",
+  "adopt_hub_skill",
   "open_data_dir",
   "get_data_dir",
   "browse_dir",

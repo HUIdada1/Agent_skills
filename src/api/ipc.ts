@@ -2,13 +2,13 @@
 import type {
   AppConfig, SkillRow, SkillDetail, Overview, SyncPlan, SyncResult, ConflictItem, ConflictDiff,
   ReportRow, ToolRow, TrashRow, UpdateStatus, UpdateEvent, ProbeRow, RemoveToolPlan,
-  WebDavStatus, RemoteDevice, WebDavLog,
+  WebDavStatus, RemoteDevice, WebDavLog, HubExtraRow, WatchStatus,
 } from "../types";
 
 export type {
   AppConfig, SkillRow, SkillDetail, Overview, SyncPlan, SyncResult, ConflictItem, ConflictDiff,
   ReportRow, ToolRow, TrashRow, UpdateStatus, UpdateEvent, ProbeRow, RemoveToolPlan,
-  WebDavStatus, RemoteDevice, WebDavLog, WebDavEvent,
+  WebDavStatus, RemoteDevice, WebDavLog, WebDavEvent, HubExtraRow, WatchStatus,
 } from "../types";
 
 type InvokeFn = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
@@ -88,6 +88,10 @@ export const trashRestore = (name: string) => call<{ ok: boolean; message?: stri
 export const trashPurge = () => call<{ purged: number }>("trash_purge");
 
 export const removeSkill = (name: string) => call<{ ok: boolean; message?: string }>("remove_skill", { name });
+
+// 自动感知与中央巡检纳管
+export const watchStatus = () => call<WatchStatus>("watch_status");
+export const adoptHubSkill = (name: string) => call<{ ok: boolean; message?: string; name?: string; mounts?: number }>("adopt_hub_skill", { name });
 
 export const openDataDir = () =>
   call<{ ok: boolean }>("open_data_dir").catch(() => ({ ok: false }));

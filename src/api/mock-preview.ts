@@ -28,6 +28,7 @@ const CONFIG = {
     deviceName: "DESK-01",
   },
   schedule: { minimizeToTray: true, autoStart: true, hourly: false, daily: true, dailyTime: "09:00", notifyOnSuccess: false },
+  watch: { enabled: true },
 };
 
 const TOOLS = [
@@ -161,7 +162,7 @@ export async function mockCall(cmd: string): Promise<unknown> {
     case "list_tools": return TOOLS;
     case "probe_agents": return PROBED;
     case "remove_tool": return { ok: true, mounts: [{ skill: "brandkit", path: "C:\\Users\\demo\\.cursor\\skills\\brandkit" }], sourceCount: 1, openConflicts: 0 };
-    case "list_skills": return SKILLS;
+    case "watch_status": return { intervalSeconds: 15, lastScanAt: NOW };
     case "webdav_status": return JSON.parse(JSON.stringify(WEBDAV_STATUS));
     case "webdav_logs": return WEBDAV_LOGS;
     case "webdav_devices": return DEVICES;
@@ -179,7 +180,7 @@ export async function mockCall(cmd: string): Promise<unknown> {
         tools: TOOLS.filter((t) => t.enabled).map((t) => ({ id: t.id, name: t.name, dir: t.dir || "", skillCount: 6, mountCount: 2 })),
         mountHealth: [],
         orphans: ORPHANS, pendingConflicts: [],
-        recentReports: [], trashCount: TRASH.length,
+        recentReports: [], trashCount: TRASH.length, hubExtra: [],
       };
     case "sync_plan":
       return {

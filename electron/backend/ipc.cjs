@@ -12,6 +12,7 @@ const mounter = require("./mounter.cjs");
 const updater = require("./updater.cjs");
 const remotesync = require("./remotesync.cjs");
 const webdav = require("./webdav.cjs");
+const watch = require("./watch.cjs");
 
 // 渲染层拿到的密码一律是掩码；保存/测试连接收到精确掩码时回填磁盘真值
 const PASSWORD_MASK = "••••••••";
@@ -160,6 +161,7 @@ function register({ ipcMain }) {
       pendingConflicts: conflicts,
       recentReports: reports,
       trashCount: hub.listTrash().length,
+      hubExtra: survey.hubExtra,
     };
   }));
   ipcMain.handle("list_skills", handle(() => {
@@ -182,6 +184,25 @@ function register({ ipcMain }) {
         mounts: [],
         mtimeMs: s.mtimeMs,
         origin: "system",
+      });
+    }
+    // 中央巡检：仓库里有目录但 manifest 没记账（工具/AI 绕过软件直接放入的），
+    // 技能库原样列出并给「纳管」入口，绝不静默当不存在
+    for (const hx of survey.hubExtra) {
+      if (seen.has(hx.name)) continue;
+      seen.add(hx.name);
+      rows.push({
+        name: hx.name,
+        skillName: hx.name,
+        description: hx.isLink ? "中央仓库里的悬空链接，无真身" : (hx.hasSkillMd ? "已被直接放入中央仓库但未登记" : "含未登记内容"),
+        version: "",
+        treeHash: "",
+        health: hx.health,
+        sources: [],
+        inManifest: false,
+        mounts: [],
+        mtimeMs: hx.mtimeMs,
+        origin: "hub-extra",
       });
     }
     return rows;
@@ -328,6 +349,10 @@ function register({ ipcMain }) {
   ipcMain.handle("trash_purge", handle(() => ({ purged: hub.purgeTrash(C().trashDays || 7) })));
 
   ipcMain.handle("remove_skill", handle(({ name }) => hub.removeSkill(name)));
+
+  // 自动感知状态 + 中央未登记目录纳管（只补账，不动文件）
+  ipcMain.handle("watch_status", handle(() => watch.status()));
+  ipcMain.handle("adopt_hub_skill", handle(({ name }) => syncer.adoptHubSkill(name, C())));
 
   ipcMain.handle("open_data_dir", handle(async () => {
     await shell.openPath(config.hubDir());

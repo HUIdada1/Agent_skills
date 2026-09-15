@@ -13,6 +13,11 @@ function isLink(p) {
   }
 }
 
+// Windows 用 junction（免管理员权限），其他平台用目录符号链接；记录到 manifest 的类型名随之走
+function linkType() {
+  return process.platform === "win32" ? "junction" : "symlink";
+}
+
 // junction 的 readlink 会带 \\?\ 前缀和尾部反斜杠，比较前去掉；Windows 不区分大小写
 function normalizeTarget(t) {
   const s = String(t || "").replace(/^\\\?\\/, "").replace(/[\\/]+$/, "");
@@ -46,8 +51,8 @@ function mount(skillName, toolDir, mode, mountName) {
     fs.cpSync(target, linkPath, { recursive: true });
     return { action: "copied", linkPath };
   }
-  fs.symlinkSync(target, linkPath, "junction");
-  return fs.existsSync(linkPath) ? { action: "mounted", linkPath } : { action: "error", message: "Junction 创建失败", linkPath };
+  fs.symlinkSync(target, linkPath, process.platform === "win32" ? "junction" : "dir");
+  return fs.existsSync(linkPath) ? { action: "mounted", linkPath } : { action: "error", message: "链接创建失败", linkPath };
 }
 
 function unmount(linkPath) {
@@ -72,4 +77,4 @@ function verifyAll(manifest) {
   return rows;
 }
 
-module.exports = { isLink, pointsTo, mount, unmount, verifyAll };
+module.exports = { isLink, pointsTo, mount, unmount, verifyAll, linkType };
